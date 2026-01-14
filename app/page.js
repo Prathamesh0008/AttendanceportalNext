@@ -382,152 +382,152 @@ export default function HomePage() {
   };
 
   // Start Shift - NOTIFY EMPLOYEE AND MANAGER
-  const startShift = async () => {
-    if (!empId) {
-      alert('Please select an employee first');
-      return;
-    }
+ // In startShift function
+const startShift = async () => {
+  if (!empId) {
+    alert('Please select an employee first');
+    return;
+  }
 
-    setShiftStarted(true);
-    const now = new Date();
-    setShiftStartTime(now);
-    
-    const newRecord = {
-      empId,
-      empName,
-      action: 'SHIFT_START',
-      timestamp: now.toISOString(),
-      date: now.toLocaleDateString('en-IN'),
-      time: now.toLocaleTimeString('en-IN'),
-    };
-    
-    setAttendanceData(prev => [...prev, newRecord]);
-    
-    setEmailStatus('Sending shift start notifications...');
-    
-    try {
-      // Send to MANAGER
-      if (notificationSettings.shiftStart) {
-        await sendRealEmail(
-          MANAGER.email,
-          `✅ Shift Started - ${empName}`,
-          '',
-          'shiftStarted',
-          {
-            employeeName: empName,
-            employeeId: empId,
-            shiftStartTime: now.toLocaleTimeString(),
-            date: now.toLocaleDateString(),
-          }
-        );
-      }
-      
-      // Send to EMPLOYEE
-      if (notificationSettings.shiftStart && empEmail) {
-        await sendRealEmail(
-          empEmail,
-          `🏁 Shift Started Successfully - ${empName}`,
-          `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-              <h2 style="color: #059669; text-align: center;">Shift Started Successfully</h2>
-              <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Employee:</strong> ${empName} (${empId})</p>
-                <p><strong>Shift Started:</strong> ${now.toLocaleTimeString()}</p>
-                <p><strong>Date:</strong> ${now.toLocaleDateString()}</p>
-                <p><strong>Shift Timing:</strong> ${currentEmployee?.shift || 'Regular Shift'}</p>
-              </div>
-              <p style="color: #666; font-size: 14px;">Your shift has been logged. You can now take breaks using the portal.</p>
-              <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
-              <p style="text-align: center; color: #999; font-size: 12px;">
-                Nova TechSciences Attendance Portal<br>
-                This is an automated notification
-              </p>
-            </div>
-          `
-        );
-      }
-      
-      setEmailStatus('✅ Shift start notifications sent!');
-      
-    } catch (error) {
-      console.error('Error sending shift start emails:', error);
-      setEmailStatus('❌ Failed to send some notifications');
-    }
+  const now = new Date();
+  console.log('Starting shift at:', now.toISOString());
+  
+  setShiftStarted(true);
+  setShiftStartTime(now);
+  
+  const newRecord = {
+    empId,
+    empName,
+    action: 'SHIFT_START',
+    timestamp: now.toISOString(),
+    date: now.toLocaleDateString('en-IN'),
+    time: now.toLocaleTimeString('en-IN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true 
+    }),
+    shiftType: 'Regular',
   };
+  
+  setAttendanceData(prev => [...prev, newRecord]);
+  console.log('SHIFT_START record added:', newRecord);
+  
+  // ... rest of your startShift function
+};
 
-  // End Shift - SEND SUMMARY TO EMPLOYEE
-  const endShift = async () => {
-    if (!shiftStarted) return;
+// In endShift function
+const endShift = async () => {
+  if (!shiftStarted) {
+    alert('Shift has not been started');
+    return;
+  }
 
-    const now = new Date();
-    const workingHours = calculateWorkingHours(shiftStartTime, now, totalBreakTime);
+  const now = new Date();
+  console.log('Ending shift at:', now.toISOString());
+  console.log('Shift started at:', shiftStartTime?.toISOString());
+  
+  if (shiftStartTime && now < shiftStartTime) {
+    alert('Error: End time cannot be before start time');
+    return;
+  }
 
-    const newRecord = {
-      empId,
-      empName,
-      action: 'SHIFT_END',
-      timestamp: now.toISOString(),
-      workingHours,
-      totalBreaks: totalBreakTime,
-    };
+  // Calculate working hours properly
+  let workingHours = '0h 0m';
+  if (shiftStartTime) {
+    const diffMs = now - shiftStartTime;
+    const totalMinutes = diffMs / (1000 * 60);
+    const netMinutes = totalMinutes - totalBreakTime;
     
-    setAttendanceData(prev => [...prev, newRecord]);
-
-    setEmailStatus('Sending shift summary...');
-    
-    try {
-      // Send detailed summary to EMPLOYEE
-      if (notificationSettings.shiftEnd && empEmail) {
-        await sendRealEmail(
-          empEmail,
-          `📊 Shift Summary - ${empName}`,
-          '',
-          'shiftSummary',
-          {
-            employeeName: empName,
-            employeeId: empId,
-            shiftStart: shiftStartTime?.toLocaleTimeString() || 'N/A',
-            shiftEnd: now.toLocaleTimeString(),
-            shiftDate: now.toLocaleDateString(),
-            totalBreaks: totalBreakTime,
-            workingHours: workingHours,
-            breakHistory: breakHistory.filter(b => b.employee === empName && 
-              new Date(b.timestamp).toDateString() === now.toDateString()),
-          }
-        );
-      }
-      
-      // Optional: Send to manager too
-      if (notificationSettings.shiftEnd) {
-        await sendRealEmail(
-          MANAGER.email,
-          `📋 Shift Completed - ${empName}`,
-          `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h3 style="color: #2563eb;">Shift Completion Report</h3>
-              <p><strong>Employee:</strong> ${empName} (${empId})</p>
-              <p><strong>Shift:</strong> ${shiftStartTime?.toLocaleTimeString()} - ${now.toLocaleTimeString()}</p>
-              <p><strong>Working Hours:</strong> ${workingHours}</p>
-              <p><strong>Total Breaks:</strong> ${totalBreakTime} minutes</p>
-              <p><strong>Date:</strong> ${now.toLocaleDateString()}</p>
-            </div>
-          `
-        );
-      }
-      
-      setEmailStatus('✅ Shift summary sent to employee!');
-
-    } catch (error) {
-      console.error('Error sending shift end emails:', error);
-      setEmailStatus('❌ Failed to send summary');
+    if (netMinutes >= 0) {
+      const hours = Math.floor(netMinutes / 60);
+      const minutes = Math.round(netMinutes % 60);
+      workingHours = `${hours}h ${minutes}m`;
+    } else {
+      workingHours = 'Invalid (Breaks > Duration)';
     }
+  }
 
-    // Reset state
-    setShiftStarted(false);
-    setShiftStartTime(null);
-    setTotalBreakTime(0);
-    setActiveBreak(null);
+  const newRecord = {
+    empId,
+    empName,
+    action: 'SHIFT_END',
+    timestamp: now.toISOString(),
+    date: new Date(shiftStartTime).toLocaleDateString('en-IN'),
+    time: now.toLocaleTimeString('en-IN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true 
+    }),
+    workingHours,
+    totalBreaks: totalBreakTime,
+    shiftStartTimestamp: shiftStartTime?.toISOString(),
+    shiftEndTimestamp: now.toISOString(),
+    durationMinutes: Math.round((now - shiftStartTime) / (1000 * 60)),
   };
+  
+  setAttendanceData(prev => [...prev, newRecord]);
+  console.log('SHIFT_END record added:', newRecord);
+
+  // Reset shift state
+  setShiftStarted(false);
+  setShiftStartTime(null);
+  setTotalBreakTime(0);
+  setActiveBreak(null);
+
+  // Send email notifications
+  setEmailStatus('Sending shift summary...');
+  
+  try {
+    // Send detailed summary to EMPLOYEE
+    if (notificationSettings.shiftEnd && empEmail) {
+      await sendRealEmail(
+        empEmail,
+        `📊 Shift Summary - ${empName}`,
+        '',
+        'shiftSummary',
+        {
+          employeeName: empName,
+          employeeId: empId,
+          shiftStart: shiftStartTime?.toLocaleTimeString() || 'N/A',
+          shiftEnd: now.toLocaleTimeString(),
+          shiftDate: now.toLocaleDateString(),
+          totalBreaks: totalBreakTime,
+          workingHours: workingHours,
+          breakHistory: breakHistory.filter(b => b.employee === empName && 
+            new Date(b.timestamp).toDateString() === now.toDateString()),
+        }
+      );
+    }
+    
+    // Optional: Send to manager too
+    if (notificationSettings.shiftEnd) {
+      await sendRealEmail(
+        MANAGER.email,
+        `📋 Shift Completed - ${empName}`,
+        `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h3 style="color: #2563eb;">Shift Completion Report</h3>
+            <p><strong>Employee:</strong> ${empName} (${empId})</p>
+            <p><strong>Shift:</strong> ${shiftStartTime?.toLocaleTimeString()} - ${now.toLocaleTimeString()}</p>
+            <p><strong>Working Hours:</strong> ${workingHours}</p>
+            <p><strong>Total Breaks:</strong> ${totalBreakTime} minutes</p>
+            <p><strong>Date:</strong> ${now.toLocaleDateString()}</p>
+          </div>
+        `
+      );
+    }
+    
+    setEmailStatus('✅ Shift summary sent to employee!');
+    alert(`✅ Shift ended successfully!\nWorking Hours: ${workingHours}\nTotal Breaks: ${totalBreakTime} minutes`);
+
+  } catch (error) {
+    console.error('Error sending shift end emails:', error);
+    setEmailStatus('❌ Failed to send summary');
+    alert('Shift ended, but email notification failed.');
+  }
+};
 
   const startBreak = (type, minutes) => {
     if (!shiftStarted) {
@@ -774,63 +774,398 @@ export default function HomePage() {
   };
 
   const downloadExcel = async () => {
-    const password = prompt('Enter admin password:');
-    if (password !== ADMIN_PASSWORD) {
-      alert('Incorrect password');
-      return;
-    }
+  const password = prompt('Enter admin password:');
+  if (password !== ADMIN_PASSWORD) {
+    alert('Incorrect password');
+    return;
+  }
 
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // Process attendance data to combine SHIFT_START and SHIFT_END
+    // Process attendance data to combine SHIFT_START and SHIFT_END
+const processedAttendance = [];
+const shiftMap = new Map();
+
+// First pass: Organize by employee and date
+attendanceData.forEach(record => {
+  const date = record.date || new Date(record.timestamp).toLocaleDateString('en-IN');
+  const key = `${record.empId}_${date}`;
+  
+  if (!shiftMap.has(key)) {
+    shiftMap.set(key, {
+      employeeId: record.empId,
+      employeeName: record.empName,
+      date: date,
+      startTime: null,
+      endTime: null,
+      startDateTime: null,
+      endDateTime: null,
+      workingHours: null,
+      totalBreaks: 0, // Initialize to 0
+      status: 'Incomplete',
+      breakTime: 0
+    });
+  }
+  
+  const shift = shiftMap.get(key);
+  
+  if (record.action === 'SHIFT_START') {
+    const startDateTime = new Date(record.timestamp);
+    if (!isNaN(startDateTime.getTime())) {
+      shift.startTime = startDateTime.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true 
+      });
+      shift.startDateTime = startDateTime.toLocaleString('en-IN');
+      shift.startTimestamp = record.timestamp;
+      shift.status = 'Active';
+    }
+  }
+  
+  if (record.action === 'SHIFT_END') {
+    const endDateTime = new Date(record.timestamp);
+    if (!isNaN(endDateTime.getTime())) {
+      shift.endTime = endDateTime.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true 
+      });
+      shift.endDateTime = endDateTime.toLocaleString('en-IN');
+      shift.endTimestamp = record.timestamp;
+      shift.workingHours = record.workingHours || 'N/A';
+      shift.totalBreaks = record.totalBreaks || 0;
+      shift.status = 'Completed';
+    }
+  }
+});
+
+// Second pass: Calculate working hours for completed shifts
+shiftMap.forEach(shift => {
+  if (shift.startTimestamp && shift.endTimestamp) {
     try {
-      const wb = XLSX.utils.book_new();
-
-      if (attendanceData.length > 0) {
-        const attendanceSheetData = attendanceData.map(record => ({
-          Date: record.date,
-          Time: record.time,
-          'Employee ID': record.empId,
-          'Employee Name': record.empName,
-          'Employee Email': employees.find(e => e.id === record.empId)?.email || 'N/A',
-          Action: record.action,
-          'Working Hours': record.workingHours || '',
-          'Total Breaks': record.totalBreaks || 0,
-        }));
-        const ws1 = XLSX.utils.json_to_sheet(attendanceSheetData);
-        XLSX.utils.book_append_sheet(wb, ws1, 'Attendance Logs');
+      const start = new Date(shift.startTimestamp);
+      const end = new Date(shift.endTimestamp);
+      
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
+        const diffMs = end - start;
+        const totalMinutes = diffMs / (1000 * 60);
+        const netMinutes = totalMinutes - (shift.totalBreaks || 0);
+        
+        if (netMinutes >= 0) {
+          const hours = Math.floor(netMinutes / 60);
+          const minutes = Math.round(netMinutes % 60);
+          shift.workingHours = `${hours}h ${minutes}m`;
+          shift.netWorkingHours = `${hours}h ${minutes}m`;
+        } else {
+          shift.workingHours = 'Invalid: Breaks > Duration';
+          shift.netWorkingHours = 'Invalid';
+        }
+      } else {
+        shift.workingHours = 'Invalid Time';
+        shift.netWorkingHours = 'Invalid';
       }
-
-      if (leaveDataLocal.length > 0) {
-        const leaveSheetData = leaveDataLocal.map(record => ({
-          'Employee ID': record.empId,
-          'Employee Name': record.empName,
-          'Employee Email': employees.find(e => e.id === record.empId)?.email || 'N/A',
-          'From Date': record.fromDate,
-          'To Date': record.toDate,
-          Reason: record.reason,
-          Status: record.status,
-          'Applied On': new Date(record.appliedOn).toLocaleDateString('en-IN'),
-        }));
-        const ws2 = XLSX.utils.json_to_sheet(leaveSheetData);
-        XLSX.utils.book_append_sheet(wb, ws2, 'Leave Requests');
-      }
-
-      // Add employee directory sheet
-      const employeeSheetData = employees.map(emp => ({
-        'Employee ID': emp.id,
-        'Employee Name': emp.name,
-        'Email': emp.email,
-        'Phone': emp.phone,
-        'Shift Timing': emp.shift,
-      }));
-      const ws3 = XLSX.utils.json_to_sheet(employeeSheetData);
-      XLSX.utils.book_append_sheet(wb, ws3, 'Employee Directory');
-
-      XLSX.writeFile(wb, `NTS_Attendance_${new Date().toISOString().split('T')[0]}.xlsx`);
-      alert('Report downloaded successfully!');
     } catch (error) {
-      console.error('Error downloading Excel:', error);
-      alert('Failed to download report');
+      shift.workingHours = 'Error';
+      shift.netWorkingHours = 'Error';
     }
+  }
+});
+
+// Convert map to array
+shiftMap.forEach(shift => {
+  processedAttendance.push(shift);
+});
+
+// Sort by date and time
+processedAttendance.sort((a, b) => {
+  const dateA = new Date(a.startDateTime || a.date);
+  const dateB = new Date(b.startDateTime || b.date);
+  return dateB - dateA; // Most recent first
+});
+
+    // ==================== SHEET 1: SHIFT DETAILS ====================
+    if (processedAttendance.length > 0) {
+     const attendanceSheetData = processedAttendance.map(shift => {
+  // Calculate duration properly
+  let workingHours = 'N/A';
+  let netWorkingHours = 'N/A';
+  
+  if (shift.startTimestamp && shift.endTimestamp) {
+    try {
+      const start = new Date(shift.startTimestamp);
+      const end = new Date(shift.endTimestamp);
+      
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
+        const diffMs = end - start;
+        const totalMinutes = diffMs / (1000 * 60);
+        const netMinutes = totalMinutes - (shift.totalBreaks || 0);
+        
+        if (netMinutes >= 0) {
+          const hours = Math.floor(netMinutes / 60);
+          const minutes = Math.round(netMinutes % 60);
+          workingHours = `${hours}h ${minutes}m`;
+          netWorkingHours = `${hours}h ${minutes}m`;
+        } else {
+          workingHours = 'Invalid (Breaks > Duration)';
+          netWorkingHours = 'Invalid';
+        }
+      }
+    } catch (error) {
+      workingHours = 'Error';
+      netWorkingHours = 'Error';
+    }
+  }
+  
+  return {
+    'Date': shift.date,
+    'Employee ID': shift.employeeId,
+    'Employee Name': shift.employeeName,
+    'Login Time': shift.startTime || 'N/A',
+    'Login Date & Time': shift.startDateTime || 'N/A',
+    'Logout Time': shift.endTime || 'N/A',
+    'Logout Date & Time': shift.endDateTime || 'N/A',
+    'Shift Status': shift.status,
+    'Working Hours': workingHours,
+    'Total Breaks (min)': shift.totalBreaks || 0,
+    'Net Working Hours': netWorkingHours,
+    'Shift Duration (min)': shift.startTimestamp && shift.endTimestamp ? 
+      Math.round((new Date(shift.endTimestamp) - new Date(shift.startTimestamp)) / (1000 * 60)) : 'N/A',
+    'Remarks': '',
+    'Record Type': shift.startTime && shift.endTime ? 'Complete Shift' : 'Partial'
   };
+});
+
+      const ws1 = XLSX.utils.json_to_sheet(attendanceSheetData);
+      XLSX.utils.book_append_sheet(wb, ws1, 'Shift Details');
+      
+      // Set column widths
+      ws1['!cols'] = [
+        { wch: 12 }, // Date
+        { wch: 12 }, // Employee ID
+        { wch: 20 }, // Employee Name
+        { wch: 12 }, // Login Time
+        { wch: 20 }, // Login Date & Time
+        { wch: 12 }, // Logout Time
+        { wch: 20 }, // Logout Date & Time
+        { wch: 15 }, // Shift Status
+        { wch: 15 }, // Working Hours
+        { wch: 15 }, // Total Breaks
+        { wch: 15 }, // Net Working Hours
+        { wch: 25 }, // Remarks
+        { wch: 15 }, // Record Type
+      ];
+    }
+
+    // ==================== SHEET 2: RAW ATTENDANCE LOGS ====================
+    if (attendanceData.length > 0) {
+      const rawLogsData = attendanceData.map(record => ({
+        'Date': record.date || new Date(record.timestamp).toLocaleDateString('en-IN'),
+        'Time': record.time || new Date(record.timestamp).toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true 
+        }),
+        'Employee ID': record.empId,
+        'Employee Name': record.empName,
+        'Employee Email': employees.find(e => e.id === record.empId)?.email || 'N/A',
+        'Action': record.action,
+        'Working Hours': record.workingHours || '',
+        'Total Breaks': record.totalBreaks || 0,
+        'Recorded At': new Date(record.timestamp).toLocaleString('en-IN'),
+      }));
+      
+      const ws2 = XLSX.utils.json_to_sheet(rawLogsData);
+      XLSX.utils.book_append_sheet(wb, ws2, 'Raw Logs');
+    }
+
+    // ==================== SHEET 3: LEAVE REQUESTS ====================
+    if (leaveDataLocal.length > 0) {
+      const leaveSheetData = leaveDataLocal.map(record => ({
+        'Employee ID': record.empId,
+        'Employee Name': record.empName,
+        'Employee Email': employees.find(e => e.id === record.empId)?.email || 'N/A',
+        'From Date': record.fromDate,
+        'To Date': record.toDate,
+        'Reason': record.reason,
+        'Status': record.status,
+        'Applied On': new Date(record.appliedOn).toLocaleString('en-IN'),
+        'Total Days': calculateLeaveDays(record.fromDate, record.toDate),
+      }));
+      const ws3 = XLSX.utils.json_to_sheet(leaveSheetData);
+      XLSX.utils.book_append_sheet(wb, ws3, 'Leave Requests');
+      
+      ws3['!cols'] = [
+        { wch: 12 }, // Employee ID
+        { wch: 20 }, // Employee Name
+        { wch: 25 }, // Employee Email
+        { wch: 12 }, // From Date
+        { wch: 12 }, // To Date
+        { wch: 30 }, // Reason
+        { wch: 12 }, // Status
+        { wch: 20 }, // Applied On
+        { wch: 10 }, // Total Days
+      ];
+    }
+
+    // ==================== SHEET 4: EMPLOYEE DIRECTORY ====================
+    const employeeSheetData = employees.map(emp => ({
+      'Employee ID': emp.id,
+      'Employee Name': emp.name,
+      'Email': emp.email,
+      'Phone': emp.phone,
+      'Shift Timing': emp.shift,
+      'Status': 'Active',
+    }));
+    const ws4 = XLSX.utils.json_to_sheet(employeeSheetData);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Employee Directory');
+
+    // ==================== SHEET 5: SUMMARY REPORT ====================
+    const today = new Date().toLocaleDateString('en-IN');
+    const todaysShifts = processedAttendance.filter(shift => shift.date === today);
+    const completedToday = todaysShifts.filter(shift => shift.status === 'Completed').length;
+    const activeToday = todaysShifts.filter(shift => shift.status === 'Active').length;
+    const incompleteToday = todaysShifts.filter(shift => shift.status === 'Incomplete').length;
+    
+    const summaryData = [
+      ['Report Generated:', new Date().toLocaleString('en-IN')],
+      ['Report Date:', today],
+      ['Total Employees:', employees.length],
+      ["Today's Attendance:", todaysShifts.length],
+      ['Completed Shifts Today:', completedToday],
+      ['Active Shifts Now:', activeToday],
+      ['Incomplete Records:', incompleteToday],
+      ['Total Leave Requests:', leaveDataLocal.length],
+      ['Pending Leaves:', leaveDataLocal.filter(l => l.status === 'Pending').length],
+      ['Average Shift Duration:', calculateAverageShiftDuration(todaysShifts)],
+      ['System Version:', 'Nova TechSciences Portal v2.0'],
+    ];
+    
+    const ws5 = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, ws5, 'Summary');
+    
+    ws5['!cols'] = [
+      { wch: 25 }, // Metric
+      { wch: 30 }, // Value
+    ];
+
+    // ==================== SHEET 6: BREAK HISTORY ====================
+    if (breakHistory.length > 0) {
+      const breakSheetData = breakHistory.map(breakRec => {
+        const breakDate = breakRec.timestamp ? new Date(breakRec.timestamp) : new Date();
+        return {
+          'Date': breakDate.toLocaleDateString('en-IN'),
+          'Time': breakDate.toLocaleTimeString('en-IN'),
+          'Employee ID': breakRec.employeeId || 'N/A',
+          'Employee Name': breakRec.employee || 'N/A',
+          'Break Type': breakRec.breakType || 'N/A',
+          'Allowed Time': breakRec.allowedTime || BREAK_LIMITS[breakRec.breakType] || 0,
+          'Exceeded By': breakRec.exceededBy || 0,
+          'Status': breakRec.exceededBy > 0 ? 'Exceeded' : 'Completed',
+          'Alert Type': breakRec.type || 'N/A',
+          'Message': breakRec.message || 'N/A',
+        };
+      });
+      
+      const ws6 = XLSX.utils.json_to_sheet(breakSheetData);
+      XLSX.utils.book_append_sheet(wb, ws6, 'Break History');
+    }
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `NTS_Attendance_Report_${timestamp}.xlsx`;
+    
+    XLSX.writeFile(wb, fileName);
+    alert(`✅ Report downloaded successfully!\nFilename: ${fileName}`);
+    
+  } catch (error) {
+    console.error('Error downloading Excel:', error);
+    alert('❌ Failed to download report: ' + error.message);
+  }
+};
+
+// Helper functions
+const calculateWorkingHoursForShift = (startTime, endTime, totalBreaks = 0) => {
+  if (!startTime || !endTime) return 'N/A';
+  
+  try {
+    // Parse the dates properly
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    
+    // Check if dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'Invalid Time';
+    }
+    
+    // Make sure end time is after start time
+    if (end <= start) {
+      return 'Invalid: End before Start';
+    }
+    
+    const diffMs = end - start;
+    const totalMinutes = diffMs / (1000 * 60);
+    
+    // Subtract break time
+    const netMinutes = totalMinutes - (totalBreaks || 0);
+    
+    if (netMinutes < 0) return 'Invalid: Breaks > Duration';
+    
+    const hours = Math.floor(netMinutes / 60);
+    const minutes = Math.round(netMinutes % 60);
+    
+    return `${hours}h ${minutes}m`;
+  } catch (error) {
+    console.error('Error calculating working hours:', error);
+    return 'Calculation Error';
+  }
+};
+
+const calculateNetHours = (shift) => {
+  if (!shift.endTime || !shift.workingHours) return 'N/A';
+  return shift.workingHours; // You can adjust this if you have break time to subtract
+};
+
+const calculateLeaveDays = (fromDate, toDate) => {
+  if (!fromDate || !toDate) return 0;
+  try {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    const diffTime = Math.abs(to - from);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  } catch (error) {
+    return 0;
+  }
+};
+
+const calculateAverageShiftDuration = (shifts) => {
+  const completedShifts = shifts.filter(shift => shift.status === 'Completed' && shift.workingHours);
+  if (completedShifts.length === 0) return 'N/A';
+  
+  try {
+    let totalMinutes = 0;
+    completedShifts.forEach(shift => {
+      const match = shift.workingHours.match(/(\d+)h\s*(\d+)m/);
+      if (match) {
+        const hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        totalMinutes += (hours * 60) + minutes;
+      }
+    });
+    
+    const avgMinutes = totalMinutes / completedShifts.length;
+    const avgHours = Math.floor(avgMinutes / 60);
+    const avgMins = Math.round(avgMinutes % 60);
+    return `${avgHours}h ${avgMins}m`;
+  } catch (error) {
+    return 'N/A';
+  }
+};
 
   const calculateWorkingHours = (start, end, breakMinutes) => {
     if (!start || !end) return '0h 0m';
@@ -1160,6 +1495,62 @@ export default function HomePage() {
                   onClick={downloadExcel}
                   className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
                 >
+                  <button
+  onClick={() => {
+    console.log('=== DEBUG ATTENDANCE DATA ===');
+    console.log('Total records:', attendanceData.length);
+    
+    // Show SHIFT_START and SHIFT_END records
+    const shiftStarts = attendanceData.filter(r => r.action === 'SHIFT_START');
+    const shiftEnds = attendanceData.filter(r => r.action === 'SHIFT_END');
+    
+    console.log('SHIFT_START records:', shiftStarts.length);
+    console.log('SHIFT_END records:', shiftEnds.length);
+    
+    // Show sample records
+    if (shiftStarts.length > 0) {
+      console.log('Sample SHIFT_START:', {
+        empId: shiftStarts[0].empId,
+        timestamp: shiftStarts[0].timestamp,
+        date: shiftStarts[0].date,
+        time: shiftStarts[0].time
+      });
+    }
+    
+    if (shiftEnds.length > 0) {
+      console.log('Sample SHIFT_END:', {
+        empId: shiftEnds[0].empId,
+        timestamp: shiftEnds[0].timestamp,
+        workingHours: shiftEnds[0].workingHours
+      });
+    }
+    
+    // Check if records can be matched
+    const matchedPairs = [];
+    shiftStarts.forEach(start => {
+      const matchingEnd = shiftEnds.find(end => 
+        end.empId === start.empId && 
+        end.date === start.date
+      );
+      
+      if (matchingEnd) {
+        matchedPairs.push({ start, end: matchingEnd });
+      }
+    });
+    
+    console.log('Matched start/end pairs:', matchedPairs.length);
+    
+    alert(`Attendance Data Debug:\n
+    Total Records: ${attendanceData.length}\n
+    SHIFT_START: ${shiftStarts.length}\n
+    SHIFT_END: ${shiftEnds.length}\n
+    Matched Pairs: ${matchedPairs.length}\n
+    Check console for details.`);
+  }}
+  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white text-sm"
+>
+  🔍 Debug Data
+</button>
                   <Download className="w-5 h-5" />
                   <span>Download Report</span>
                 </button>
