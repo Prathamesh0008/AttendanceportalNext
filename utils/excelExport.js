@@ -1,276 +1,357 @@
 // /utils/excelExport.js
 import * as XLSX from 'xlsx';
+import { db } from '@/lib/firebase'; // Adjust path if needed
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy,
+  Timestamp 
+} from "firebase/firestore";
 
-export const exportToExcel = (data, fileName = 'attendance_report') => {
-  const workbook = XLSX.utils.book_new();
-  
-  // Process your data format (SHIFT_START and SHIFT_END events)
-  const processedData = processAttendanceEvents(data);
-  
-  // Format data for Excel
-  const formattedData = processedData.map(record => ({
-    'Employee ID': record.employeeId,
-    'Employee Name': record.employeeName,
-    'Email': record.employeeEmail || '',
-    'Date': record.date ? formatDate(record.date) : 'N/A',
-    'Login Time': record.startTime ? formatTime(record.startTime) : 'N/A',
-    'Login Date & Time': record.startTime ? formatDateTime(record.startTime) : 'N/A',
-    'Logout Time': record.endTime ? formatTime(record.endTime) : 'N/A',
-    'Logout Date & Time': record.endTime ? formatDateTime(record.endTime) : 'N/A',
-    'Shift Duration': record.endTime ? calculateDuration(record.startTime, record.endTime) : 'In Progress',
-    'Working Hours': record.workingHours ? `${parseFloat(record.workingHours).toFixed(2)} hours` : '0.00',
-    'Break Time': `${record.totalBreakTime || 0} minutes`,
-    'Status': record.status || 'N/A',
-    'Breaks Taken': record.breaks ? record.breaks.length : 0,
-    'Event Type': record.eventType || 'Shift',
-    'Remarks': record.remarks || '',
-    'Created At': record.createdAt ? formatDateTime(record.createdAt) : formatDateTime(new Date())
-  }));
+// ==================== FIREBASE DATA FETCHING ====================
 
-  // Create worksheet
-  const worksheet = XLSX.utils.json_to_sheet(formattedData);
-  
-  // Add column widths
-  worksheet['!cols'] = [
-    { wch: 12 }, // Employee ID
-    { wch: 20 }, // Employee Name
-    { wch: 25 }, // Email
-    { wch: 12 }, // Date
-    { wch: 12 }, // Login Time
-    { wch: 20 }, // Login Date & Time
-    { wch: 12 }, // Logout Time
-    { wch: 20 }, // Logout Date & Time
-    { wch: 15 }, // Shift Duration
-    { wch: 15 }, // Working Hours
-    { wch: 15 }, // Break Time
-    { wch: 12 }, // Status
-    { wch: 12 }, // Breaks Taken
-    { wch: 15 }, // Event Type
-    { wch: 25 }, // Remarks
-    { wch: 20 }, // Created At
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Report');
-
-  // Add summary sheet
-  const summaryData = generateSummary(processedData);
-  const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-  summarySheet['!cols'] = [
-    { wch: 30 }, // Metric
-    { wch: 30 }, // Value
-    { wch: 40 }, // Details
-  ];
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-  // Add daily attendance sheet
-  const dailyData = generateDailyAttendance(processedData);
-  const dailySheet = XLSX.utils.json_to_sheet(dailyData);
-  dailySheet['!cols'] = [
-    { wch: 12 }, // Employee ID
-    { wch: 20 }, // Employee Name
-    { wch: 12 }, // Date
-    { wch: 12 }, // Login
-    { wch: 12 }, // Logout
-    { wch: 15 }, // Duration
-    { wch: 10 }, // Status
-  ];
-  XLSX.utils.book_append_sheet(workbook, dailySheet, 'Daily Attendance');
-
-  // Save file
-  const today = new Date().toISOString().split('T')[0];
-  XLSX.writeFile(workbook, `${fileName}_${today}.xlsx`);
-};
-
-// Process your event-based data into complete records
-const processAttendanceEvents = (data) => {
-  const records = [];
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Group events by employee and date
-  const eventsByEmployee = {};
-  
-  data.forEach(event => {
-    const date = event.date || today;
-    const key = `${event.employeeId}_${date}`;
+/**
+ * Fetch attendance data from Firebase Firestore
+ */
+export const fetchAttendanceDataFromFirebase = async (startDate = null, endDate = null) => {
+  try {
+    console.log('🔍 Fetching data from Firebase...');
     
-    if (!eventsByEmployee[key]) {
-      eventsByEmployee[key] = {
-        employeeId: event.employeeId,
-        employeeName: event.employeeName,
-        employeeEmail: event.employeeEmail,
-        date: date,
-        events: []
-      };
+    const attendanceRef = collection(db, "attendance");
+    let q;
+    
+    if (startDate && endDate) {
+      // Filter by date range
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // End of day
+      
+      q = query(
+        attendanceRef,
+        where("timestamp", ">=", start),
+        where("timestamp", "<=", end),
+        orderBy("timestamp", "desc")
+      );
+    } else {
+      // Get all data
+      q = query(attendanceRef, orderBy("timestamp", "desc"));
     }
     
-    eventsByEmployee[key].events.push({
-      type: event.eventType,
-      time: event.timestamp || event.createdAt || new Date().toISOString(),
-      workingHours: event.workingHours,
-      totalBreakTime: event.totalBreakTime,
-      status: event.status,
-      breaks: event.breaks
-    });
-  });
-  
-  // Create complete records from events
-  Object.values(eventsByEmployee).forEach(group => {
-    const startEvent = group.events.find(e => e.type === 'SHIFT_START');
-    const endEvent = group.events.find(e => e.type === 'SHIFT_END');
+    const querySnapshot = await getDocs(q);
+    const data = [];
     
-    if (startEvent) {
-      const record = {
-        employeeId: group.employeeId,
-        employeeName: group.employeeName,
-        employeeEmail: group.employeeEmail,
-        date: group.date,
-        startTime: startEvent.time,
-        endTime: endEvent ? endEvent.time : null,
-        workingHours: endEvent ? endEvent.workingHours : startEvent.workingHours,
-        totalBreakTime: endEvent ? endEvent.totalBreakTime : startEvent.totalBreakTime,
-        status: endEvent ? 'Completed' : 'Active',
-        breaks: endEvent ? endEvent.breaks : startEvent.breaks,
-        eventType: 'Shift',
-        createdAt: startEvent.time,
-        updatedAt: endEvent ? endEvent.time : startEvent.time
+    querySnapshot.forEach((doc) => {
+      const docData = doc.data();
+      
+      // Convert Firebase timestamps to Date objects
+      const formatDate = (timestamp) => {
+        if (timestamp instanceof Timestamp) {
+          return timestamp.toDate();
+        } else if (timestamp?.toDate) {
+          return timestamp.toDate();
+        } else if (typeof timestamp === 'string') {
+          return new Date(timestamp);
+        }
+        return timestamp || null;
       };
       
-      records.push(record);
+      data.push({
+        id: doc.id,
+        employeeId: docData.employeeId || '',
+        employeeName: docData.employeeName || '',
+        date: formatDate(docData.date || docData.timestamp),
+        startTime: formatDate(docData.startTime || docData.timestamp),
+        endTime: formatDate(docData.endTime),
+        workingHours: docData.workingHours || 0,
+        totalBreakTime: docData.totalBreakTime || 0,
+        status: docData.status || '',
+        breakHistory: docData.breakHistory || [],
+        remarks: docData.remarks || '',
+        createdAt: formatDate(docData.createdAt)
+      });
+    });
+    
+    console.log(`✅ Fetched ${data.length} records from Firebase`);
+    return data;
+    
+  } catch (error) {
+    console.error("❌ Error fetching from Firebase:", error);
+    return [];
+  }
+};
+
+/**
+ * Fetch TODAY'S attendance data from Firebase
+ */
+export const fetchTodaysAttendanceFromFirebase = async () => {
+  const today = new Date().toISOString().split('T')[0];
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  return await fetchAttendanceDataFromFirebase(startOfDay, endOfDay);
+};
+
+// ==================== MAIN EXPORT FUNCTION (UPDATED) ====================
+
+/**
+ * MAIN EXPORT FUNCTION - Now fetches from Firebase
+ */
+export const exportToExcel = async (
+  fileName = 'attendance_report',
+  useLocalData = null, // Optional: if you want to use local data instead
+  startDate = null, // Optional: date range
+  endDate = null    // Optional: date range
+) => {
+  try {
+    let dataToExport;
+    
+    // If local data is provided, use it (for backward compatibility)
+    if (useLocalData && Array.isArray(useLocalData) && useLocalData.length > 0) {
+      console.log('📝 Using provided local data');
+      dataToExport = useLocalData;
+    } else {
+      // Otherwise fetch from Firebase
+      console.log('🌐 Fetching data from Firebase database...');
+      dataToExport = startDate && endDate 
+        ? await fetchAttendanceDataFromFirebase(startDate, endDate)
+        : await fetchTodaysAttendanceFromFirebase();
     }
-  });
-  
-  return records;
+    
+    if (!dataToExport || dataToExport.length === 0) {
+      alert('No attendance data found in the database.');
+      return false;
+    }
+    
+    console.log(`📊 Exporting ${dataToExport.length} records to Excel`);
+    
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    
+    // Format data for Excel
+    const formattedData = dataToExport.map(record => ({
+      'Employee ID': record.employeeId,
+      'Employee Name': record.employeeName,
+      'Date': record.date ? new Date(record.date).toLocaleDateString() : 'N/A',
+      'Shift Start': record.startTime ? new Date(record.startTime).toLocaleTimeString() : 'N/A',
+      'Shift End': record.endTime ? new Date(record.endTime).toLocaleTimeString() : 'N/A',
+      'Working Hours (minutes)': record.workingHours || 0,
+      'Total Break Time (minutes)': record.totalBreakTime || 0,
+      'Net Working Hours': calculateNetHours(record),
+      'Status': record.status,
+      'Breaks Taken': record.breakHistory?.length || 0,
+      'Remarks': record.remarks || '',
+      'Last Updated': record.createdAt ? new Date(record.createdAt).toLocaleString() : new Date().toLocaleString()
+    }));
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(formattedData);
+    
+    // Add column widths
+    worksheet['!cols'] = [
+      { wch: 12 }, // Employee ID
+      { wch: 20 }, // Employee Name
+      { wch: 12 }, // Date
+      { wch: 12 }, // Shift Start
+      { wch: 12 }, // Shift End
+      { wch: 20 }, // Working Hours
+      { wch: 20 }, // Total Break Time
+      { wch: 18 }, // Net Working Hours
+      { wch: 15 }, // Status
+      { wch: 15 }, // Breaks Taken
+      { wch: 25 }, // Remarks
+      { wch: 20 }, // Last Updated
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Report');
+
+    // Add summary sheet
+    const summaryData = generateSummary(dataToExport);
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    // Determine filename
+    const today = new Date().toISOString().split('T')[0];
+    const finalFileName = startDate && endDate 
+      ? `${fileName}_${startDate}_to_${endDate}.xlsx`
+      : `${fileName}_${today}.xlsx`;
+    
+    // Save file
+    XLSX.writeFile(workbook, finalFileName);
+    
+    console.log(`✅ Excel file saved: ${finalFileName}`);
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error exporting to Excel:', error);
+    alert('Error exporting data. Please try again.');
+    return false;
+  }
 };
 
-// Helper functions
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-IN');
-};
+// ==================== HELPER FUNCTIONS ====================
 
-const formatTime = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return date.toLocaleTimeString('en-IN', { 
-    hour: '2-digit', 
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true 
-  });
-};
-
-const formatDateTime = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  return date.toLocaleString('en-IN');
-};
-
-const calculateDuration = (startTime, endTime) => {
-  if (!startTime || !endTime) return 'N/A';
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  const diffMs = end - start;
-  
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-  
-  return `${hours}h ${minutes}m ${seconds}s`;
+const calculateNetHours = (record) => {
+  if (!record.startTime || !record.endTime) return 0;
+  const start = new Date(record.startTime);
+  const end = new Date(record.endTime);
+  const totalMinutes = (end - start) / (1000 * 60);
+  const netMinutes = totalMinutes - (record.totalBreakTime || 0);
+  return (netMinutes / 60).toFixed(2);
 };
 
 const generateSummary = (data) => {
   const today = new Date().toISOString().split('T')[0];
-  const todaysRecords = data.filter(record => record.date === today);
-  const completedShifts = todaysRecords.filter(r => r.status === 'Completed');
-  const activeShifts = todaysRecords.filter(r => r.status === 'Active');
   
-  const totalWorkingHours = completedShifts.reduce((sum, r) => {
-    return sum + (parseFloat(r.workingHours) || 0);
-  }, 0);
+  // Filter today's records
+  const todaysRecords = data.filter(record => {
+    const recordDate = record.date ? new Date(record.date).toISOString().split('T')[0] : 
+                      record.startTime ? new Date(record.startTime).toISOString().split('T')[0] : 
+                      null;
+    return recordDate === today;
+  });
   
-  const avgWorkingHours = completedShifts.length > 0 
-    ? (totalWorkingHours / completedShifts.length).toFixed(2)
-    : 0;
-  
-  return [
-    { 'Metric': 'Report Date', 'Value': formatDate(today), 'Details': 'Date of report generation' },
-    { 'Metric': 'Total Records', 'Value': data.length, 'Details': 'Total attendance records in system' },
-    { 'Metric': "Today's Records", 'Value': todaysRecords.length, 'Details': `Active: ${activeShifts.length}, Completed: ${completedShifts.length}` },
-    { 'Metric': 'Completed Shifts Today', 'Value': completedShifts.length, 'Details': 'Shifts that have been ended' },
-    { 'Metric': 'Active Shifts', 'Value': activeShifts.length, 'Details': 'Shifts currently in progress' },
-    { 'Metric': 'Total Working Hours Today', 'Value': `${totalWorkingHours.toFixed(2)} hours`, 'Details': 'Sum of all completed shift hours' },
-    { 'Metric': 'Average Shift Duration', 'Value': `${avgWorkingHours} hours`, 'Details': 'Average duration per completed shift' },
-    { 'Metric': 'Report Generated', 'Value': formatDateTime(new Date()), 'Details': 'Date and time of export' },
-  ];
+  const summary = [{
+    'Report Date': new Date().toLocaleDateString(),
+    'Total Records Exported': data.length,
+    'Today\'s Records': todaysRecords.length,
+    'Active Shifts Today': todaysRecords.filter(r => r.status === 'Active').length,
+    'Completed Shifts Today': todaysRecords.filter(r => r.status === 'Completed').length,
+    'Average Working Hours': calculateAverageHours(todaysRecords),
+    'Total Break Time Today': todaysRecords.reduce((sum, r) => sum + (r.totalBreakTime || 0), 0),
+    'Data Source': 'Firebase Firestore',
+    'Generated At': new Date().toLocaleTimeString()
+  }];
+
+  return summary;
 };
 
-const generateDailyAttendance = (data) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todaysRecords = data.filter(record => record.date === today);
-  
-  return todaysRecords.map(record => ({
-    'Employee ID': record.employeeId,
-    'Employee Name': record.employeeName,
-    'Date': formatDate(record.date),
-    'Login': record.startTime ? formatTime(record.startTime) : 'N/A',
-    'Logout': record.endTime ? formatTime(record.endTime) : 'N/A',
-    'Duration': record.endTime ? calculateDuration(record.startTime, record.endTime) : 'Active',
-    'Status': record.status
-  }));
+const calculateAverageHours = (records) => {
+  const completed = records.filter(r => r.status === 'Completed' && r.workingHours);
+  if (completed.length === 0) return 0;
+  const total = completed.reduce((sum, r) => sum + parseFloat(r.workingHours || 0), 0);
+  return (total / completed.length).toFixed(2);
 };
 
-// Export button component
-export const ExcelExportButton = ({ data, fileName, className = '' }) => {
-  const handleExport = () => {
-    if (!data || data.length === 0) {
-      alert('No attendance data available to export');
-      return;
+// ==================== CONVENIENCE FUNCTIONS ====================
+
+/**
+ * Export today's data from Firebase
+ */
+export const exportTodaysData = async () => {
+  return await exportToExcel('attendance_today');
+};
+
+/**
+ * Export all data from Firebase
+ */
+export const exportAllData = async () => {
+  return await exportToExcel('attendance_all', null, null, null);
+};
+
+/**
+ * Export data for specific date range
+ */
+export const exportDateRange = async (startDate, endDate) => {
+  return await exportToExcel('attendance_range', null, startDate, endDate);
+};
+
+// ==================== UPDATED EXPORT BUTTON COMPONENT ====================
+
+export const ExcelExportButton = ({ 
+  data = null, // Optional local data
+  fileName = 'attendance_report',
+  variant = 'today', // 'today', 'all', 'custom'
+  startDate = null,
+  endDate = null,
+  className = ''
+}) => {
+  const [isExporting, setIsExporting] = React.useState(false);
+  
+  const handleExport = async () => {
+    setIsExporting(true);
+    
+    try {
+      let success = false;
+      
+      if (variant === 'today') {
+        success = await exportTodaysData();
+      } else if (variant === 'all') {
+        success = await exportAllData();
+      } else if (variant === 'custom' && startDate && endDate) {
+        success = await exportDateRange(startDate, endDate);
+      } else if (data && data.length > 0) {
+        // Use local data (backward compatibility)
+        success = await exportToExcel(fileName, data);
+      } else {
+        // Default: fetch today's data
+        success = await exportTodaysData();
+      }
+      
+      if (success) {
+        console.log('Export completed successfully!');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export. Please try again.');
+    } finally {
+      setIsExporting(false);
     }
-    
-    // Check if we have any complete records
-    const hasCompleteRecords = data.some(record => 
-      record.startTime && record.endTime
-    );
-    
-    if (!hasCompleteRecords) {
-      alert('No complete shift records found. Make sure shifts have been ended.');
-    }
-    
-    exportToExcel(data, fileName || 'attendance_report');
   };
 
   return (
     <button
       onClick={handleExport}
-      className={`px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white rounded-lg font-medium flex items-center space-x-2 transition-all ${className}`}
+      disabled={isExporting}
+      className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >
-      <span>📊</span>
-      <span>Export Attendance Report</span>
+      {isExporting ? (
+        <>
+          <span className="animate-spin">⏳</span>
+          <span>Exporting from Database...</span>
+        </>
+      ) : (
+        <>
+          <span>📊</span>
+          <span>
+            {variant === 'today' ? "Export Today's Data" : 
+             variant === 'all' ? "Export All Data" : 
+             variant === 'custom' ? "Export Custom Range" : 
+             "Export to Excel"}
+          </span>
+        </>
+      )}
     </button>
   );
 };
 
-// Simple function to debug your data
-export const debugDataFormat = (data) => {
-  console.log('=== ATTENDANCE DATA DEBUG ===');
-  console.log('Total records:', data.length);
-  
-  data.forEach((record, index) => {
-    console.log(`\nRecord ${index + 1}:`);
-    console.log('Employee:', record.employeeName);
-    console.log('Event Type:', record.eventType);
-    console.log('Start Time:', record.startTime);
-    console.log('End Time:', record.endTime);
-    console.log('Working Hours:', record.workingHours);
-    console.log('Status:', record.status);
-  });
-  
-  // Check for SHIFT_END events
-  const shiftEnds = data.filter(r => r.eventType === 'SHIFT_END');
-  console.log('\n=== SHIFT_END EVENTS ===');
-  console.log('Total SHIFT_END events:', shiftEnds.length);
-  shiftEnds.forEach(event => {
-    console.log(`${event.employeeName}: ${event.timestamp}`);
-  });
+// ==================== BACKWARD COMPATIBILITY ====================
+
+/**
+ * For backward compatibility - exports local data
+ */
+export const exportLocalDataToExcel = (data, fileName = 'attendance_report') => {
+  return exportToExcel(fileName, data);
+};
+
+/**
+ * Check Firebase connection and data
+ */
+export const checkFirebaseData = async () => {
+  try {
+    const data = await fetchTodaysAttendanceFromFirebase();
+    console.log('Firebase check:', {
+      connected: true,
+      recordsCount: data.length,
+      sampleRecord: data[0] || null
+    });
+    return data;
+  } catch (error) {
+    console.error('Firebase check failed:', error);
+    return null;
+  }
 };

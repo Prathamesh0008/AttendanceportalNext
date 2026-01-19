@@ -25,12 +25,7 @@ import {
   Shield,
   UserCircle,
   AtSign,
-  Smartphone,
-  History,
-  LogIn,
-  LogOut as LogOutIcon,
-  Coffee as CoffeeIcon,
-  Calendar
+  Smartphone
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // Add these imports at the top of your page.jsx file
@@ -83,45 +78,6 @@ const sendRealEmail = async (to, subject, htmlContent, emailType = null, emailDa
     throw error;
   }
 };
-const debugLocalStorage = () => {
-  const shift = getShiftFromStorage();
-  const activeBreak = getActiveBreakFromStorage();
-  
-  console.log('=== LOCAL STORAGE DEBUG ===');
-  console.log('Shift:', shift);
-  console.log('Active Break:', activeBreak);
-  console.log('===========================');
-  
-  alert(`Local Storage Debug:\n\nShift: ${shift ? JSON.stringify(shift, null, 2) : 'None'}\n\nActive Break: ${activeBreak ? JSON.stringify(activeBreak, null, 2) : 'None'}`);
-};
-// Helper functions for localStorage
-const saveShiftToStorage = (shiftData) => {
-  localStorage.setItem('currentShift', JSON.stringify(shiftData));
-  // Add to your existing localStorage helpers
-
-};
-
-const getShiftFromStorage = () => {
-  const data = localStorage.getItem('currentShift');
-  return data ? JSON.parse(data) : null;
-};
-
-const clearShiftFromStorage = () => {
-  localStorage.removeItem('currentShift');
-};
-// Active break storage helpers
-const saveActiveBreakToStorage = (breakData) => {
-  localStorage.setItem('activeBreak', JSON.stringify(breakData));
-};
-
-const getActiveBreakFromStorage = () => {
-  const data = localStorage.getItem('activeBreak');
-  return data ? JSON.parse(data) : null;
-};
-
-const clearActiveBreakFromStorage = () => {
-  localStorage.removeItem('activeBreak');
-};
 
 // Sound notification
 const playNotificationSound = () => {
@@ -162,64 +118,41 @@ const Modal = ({ isOpen, onClose, children, title }) => {
   );
 };
 
-
 // TimerBar Component - Dark Theme
-// TimerBar Component - Dark Theme (UPDATED for break continuation)
-const TimerBar = ({ totalSeconds, breakType, onComplete, onExceed, elapsedSeconds = 0 }) => {
-  const [secondsElapsed, setSecondsElapsed] = useState(elapsedSeconds);
+const TimerBar = ({ totalSeconds, breakType, onComplete, onExceed }) => {
+  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
   const [isExceeded, setIsExceeded] = useState(false);
 
   useEffect(() => {
-    // If we already exceeded before refresh, trigger exceeded state immediately
-    if (secondsElapsed > totalSeconds && !isExceeded) {
-      setIsExceeded(true);
-      onExceed?.(secondsElapsed - totalSeconds);
-      return;
-    }
-
-    // If break is already complete
-    if (secondsElapsed >= totalSeconds) {
+    if (secondsLeft <= 0) {
       onComplete?.();
       return;
     }
 
     const timer = setInterval(() => {
-      setSecondsElapsed(prev => {
-        const newElapsed = prev + 1;
+      setSecondsLeft(prev => {
+        const newTime = prev - 1;
         
-        if (newElapsed > totalSeconds && !isExceeded) {
+        if (newTime <= -1 && !isExceeded) {
           setIsExceeded(true);
-          onExceed?.(newElapsed - totalSeconds);
+          onExceed?.(Math.abs(newTime));
         }
         
-        if (newElapsed >= totalSeconds) {
-          onComplete?.();
-        }
-        
-        return newElapsed;
+        return newTime;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [secondsElapsed, totalSeconds, onComplete, onExceed, isExceeded]);
+  }, [secondsLeft, onComplete, onExceed, isExceeded]);
 
-  const secondsLeft = Math.max(0, totalSeconds - secondsElapsed);
-  const progress = Math.min(100, (secondsElapsed / totalSeconds) * 100);
+  const progress = Math.min(100, ((totalSeconds - secondsLeft) / totalSeconds) * 100);
   const minutes = Math.floor(Math.abs(secondsLeft) / 60);
   const seconds = Math.abs(secondsLeft) % 60;
-  const totalMinutes = Math.floor(totalSeconds / 60);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm font-semibold text-gray-300">{breakType} Break</span>
-          {elapsedSeconds > 0 && (
-            <span className="text-xs bg-amber-900/50 text-amber-300 px-2 py-0.5 rounded-full">
-              RESUMED
-            </span>
-          )}
-        </div>
+        <span className="text-sm font-semibold text-gray-300">{breakType} Break</span>
         <div className={`text-sm font-mono font-bold ${isExceeded ? 'text-red-400' : 'text-emerald-400'}`}>
           {isExceeded ? '⏰ EXCEEDED' : '⏱️ Remaining'}: {minutes}:{seconds.toString().padStart(2, '0')}
         </div>
@@ -237,18 +170,10 @@ const TimerBar = ({ totalSeconds, breakType, onComplete, onExceed, elapsedSecond
           style={{ width: `${Math.min(100, progress)}%` }}
         />
       </div>
-      
-      <div className="flex justify-between text-xs text-gray-500">
-        <span>
-          Elapsed: {Math.floor(secondsElapsed / 60)}:{String(secondsElapsed % 60).padStart(2, '0')}
-        </span>
-        <span>
-          Total: {totalMinutes}:{String(totalSeconds % 60).padStart(2, '0')}
-        </span>
-      </div>
     </div>
   );
 };
+
 // Employee data WITH EMAILS
 const employees = [
   { 
@@ -323,57 +248,6 @@ const BREAK_LIMITS = {
   Breather: 5
 };
 
-// Add to activityIcons mapping
-const activityIcons = {
-  'SHIFT_START': LogIn,
-  'SHIFT_END': LogOutIcon,
-  'SHIFT_RESTORED': CheckCircle, // Add this
-  'BREAK_START': CoffeeIcon,
-  'BREAK_END': CoffeeIcon,
-  'BREAK_COMPLETED': CoffeeIcon,
-  'BREAK_EXCEEDED': AlertCircle,
-  'BREAK_RESTORED': CoffeeIcon, // Add this
-  'LEAVE_APPLIED': Calendar,
-  'LEAVE_APPROVED': CheckCircle,
-  'LEAVE_REJECTED': X,
-  'EMAIL_SENT': Mail,
-  'DAILY_SUMMARY': Send
-};
-
-// Add to activityColors
-const activityColors = {
-  'SHIFT_START': 'text-green-400',
-  'SHIFT_END': 'text-blue-400',
-  'SHIFT_RESTORED': 'text-cyan-400', // Add this
-  'BREAK_START': 'text-amber-400',
-  'BREAK_END': 'text-amber-400',
-  'BREAK_COMPLETED': 'text-emerald-400',
-  'BREAK_EXCEEDED': 'text-red-400',
-  'BREAK_RESTORED': 'text-amber-400', // Add this
-  'LEAVE_APPLIED': 'text-purple-400',
-  'LEAVE_APPROVED': 'text-green-400',
-  'LEAVE_REJECTED': 'text-red-400',
-  'EMAIL_SENT': 'text-indigo-400',
-  'DAILY_SUMMARY': 'text-cyan-400'
-};
-
-// Add to activityBgColors
-const activityBgColors = {
-  'SHIFT_START': 'bg-green-900/20 border-green-800/30',
-  'SHIFT_END': 'bg-blue-900/20 border-blue-800/30',
-  'SHIFT_RESTORED': 'bg-cyan-900/20 border-cyan-800/30', // Add this
-  'BREAK_START': 'bg-amber-900/20 border-amber-800/30',
-  'BREAK_END': 'bg-amber-900/20 border-amber-800/30',
-  'BREAK_COMPLETED': 'bg-emerald-900/20 border-emerald-800/30',
-  'BREAK_EXCEEDED': 'bg-red-900/20 border-red-800/30',
-  'BREAK_RESTORED': 'bg-amber-900/20 border-amber-800/30', // Add this
-  'LEAVE_APPLIED': 'bg-purple-900/20 border-purple-800/30',
-  'LEAVE_APPROVED': 'bg-green-900/20 border-green-800/30',
-  'LEAVE_REJECTED': 'bg-red-900/20 border-red-800/30',
-  'EMAIL_SENT': 'bg-indigo-900/20 border-indigo-800/30',
-  'DAILY_SUMMARY': 'bg-cyan-900/20 border-cyan-800/30'
-};
-
 const ADMIN_PASSWORD = "Sky@2204";
 
 export default function HomePage() {
@@ -389,14 +263,12 @@ export default function HomePage() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveData, setLeaveData] = useState({ from: '', to: '', reason: '' });
   const [alerts, setAlerts] = useState([]);
-  const [activityHistory, setActivityHistory] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);
   const [leaveDataLocal, setLeaveDataLocal] = useState([]);
   const [breakHistory, setBreakHistory] = useState([]);
   const [showBreakOverModal, setShowBreakOverModal] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
-  const [showActivityHistory, setShowActivityHistory] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState({
     shiftStart: true,
     shiftEnd: true,
@@ -410,62 +282,15 @@ export default function HomePage() {
     [empId]
   );
 
-  // Add activity to history
-  const addActivity = (activity) => {
-    const newActivity = {
-      id: Date.now(),
-      timestamp: new Date(),
-      employeeId: empId,
-      employeeName: empName,
-      ...activity
-    };
-    
-    setActivityHistory(prev => [newActivity, ...prev.slice(0, 49)]);
-    
-    // Also add to alerts for immediate notification
-    const alertActivity = {
-      id: Date.now(),
-      type: activity.type || 'info',
-      message: activity.message,
-      timestamp: new Date(),
-      ...activity
-    };
-    
-    setAlerts(prev => [alertActivity, ...prev.slice(0, 9)]);
-  };
-
-  // Handle break time exceeded
+  // Handle break time exceeded - SEND TO BOTH MANAGER AND EMPLOYEE
   const handleBreakExceeded = async (breakType, exceededSeconds) => {
-  // Calculate total elapsed time
-  let elapsedMinutes;
-  if (activeBreak?.elapsedSeconds) {
-    // Use the already elapsed time plus exceeded seconds
-    elapsedMinutes = Math.ceil((activeBreak.elapsedSeconds + exceededSeconds) / 60);
-  } else {
-    // Fallback to old calculation
-    elapsedMinutes = Math.ceil(exceededSeconds / 60);
-  }
-  
-  const allowedMinutes = BREAK_LIMITS[breakType];
-  const actualMinutes = elapsedMinutes;
-  
-  // Rest of the function remains the same...
-  playNotificationSound();
-  
-  // Add to activity history
-  addActivity({
-    action: 'BREAK_EXCEEDED',
-    breakType,
-    exceededBy: Math.max(0, actualMinutes - allowedMinutes),
-    allowedTime: allowedMinutes,
-    actualTime: actualMinutes,
-    message: `${breakType} break exceeded by ${Math.max(0, actualMinutes - allowedMinutes)} minute(s)!`,
-    type: 'warning'
-  });
-    setShowBreakOverModal(true);
+    const exceededMinutes = Math.ceil(exceededSeconds / 60);
+    const allowedMinutes = BREAK_LIMITS[breakType];
+    const actualMinutes = allowedMinutes + exceededMinutes;
     
-    // Save break data to Firebase
-    const breakRecord = {
+    playNotificationSound();
+    
+    const newAlert = {
       id: Date.now(),
       type: 'warning',
       message: `${breakType} break exceeded by ${exceededMinutes} minute(s)!`,
@@ -473,28 +298,16 @@ export default function HomePage() {
       breakType,
       exceededBy: exceededMinutes,
       employee: empName,
-      employeeId: empId,
-      employeeName: empName,
-      allowedTime: allowedMinutes,
-      actualTime: actualMinutes,
-      status: 'exceeded',
-      date: new Date().toLocaleDateString('en-IN'),
-      time: new Date().toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true 
-      }),
     };
     
-    setBreakHistory(prev => [...prev, breakRecord]);
+    setAlerts(prev => [newAlert, ...prev]);
+    setShowBreakOverModal(true);
     
-    try {
-      await saveBreakToFirebase(breakRecord);
-      console.log('✅ Break exceeded record saved to Firebase');
-    } catch (error) {
-      console.error('❌ Failed to save break to Firebase:', error);
-    }
+    setBreakHistory(prev => [...prev, {
+      ...newAlert,
+      employeeId: empId,
+      allowedTime: allowedMinutes,
+    }]);
     
     // Email notifications based on settings
     setEmailStatus('Sending notifications...');
@@ -517,15 +330,6 @@ export default function HomePage() {
             time: new Date().toLocaleString(),
           }
         );
-        
-        // Add email activity
-        addActivity({
-          action: 'EMAIL_SENT',
-          recipient: MANAGER.email,
-          subject: `Break Alert: ${empName}`,
-          message: `Break exceeded email sent to manager`,
-          type: 'info'
-        });
       }
       
       // Send to EMPLOYEE
@@ -561,15 +365,6 @@ export default function HomePage() {
             actualMinutes: actualMinutes,
           }
         );
-        
-        // Add email activity
-        addActivity({
-          action: 'EMAIL_SENT',
-          recipient: empEmail,
-          subject: `Break Exceeded Alert`,
-          message: `Break exceeded notification sent to employee`,
-          type: 'info'
-        });
       }
       
       setEmailStatus('✅ Notifications sent successfully!');
@@ -580,51 +375,21 @@ export default function HomePage() {
     }
   };
 
-  const handleBreakComplete = async (breakType, actualMinutes) => {
-    // Add to activity history
-    addActivity({
-      action: 'BREAK_COMPLETED',
-      breakType,
-      actualTime: actualMinutes,
-      allowedTime: BREAK_LIMITS[breakType],
-      message: `${breakType} break completed in ${actualMinutes} minute(s)`,
-      type: 'success'
-    });
-    
-    // Save completed break to Firebase
-    const breakRecord = {
+  const handleBreakComplete = (breakType, actualMinutes) => {
+    const newAlert = {
       id: Date.now(),
       type: 'success',
       message: `${breakType} break completed in ${actualMinutes} minute(s)`,
       timestamp: new Date(),
       breakType,
       employee: empName,
-      employeeId: empId,
-      employeeName: empName,
-      allowedTime: BREAK_LIMITS[breakType],
-      actualTime: actualMinutes,
-      status: 'completed',
-      date: new Date().toLocaleDateString('en-IN'),
-      time: new Date().toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true 
-      }),
     };
     
-    setBreakHistory(prev => [...prev, breakRecord]);
-    
-    try {
-      await saveBreakToFirebase(breakRecord);
-      console.log('✅ Break completed record saved to Firebase');
-    } catch (error) {
-      console.error('❌ Failed to save break to Firebase:', error);
-    }
+    setAlerts(prev => [newAlert, ...prev]);
   };
 
-
- // Start Shift - with immediate Firebase sync
+  // Start Shift - NOTIFY EMPLOYEE AND MANAGER
+ // In startShift function
 const startShift = async () => {
   if (!empId) {
     alert('Please select an employee first');
@@ -636,17 +401,6 @@ const startShift = async () => {
   
   setShiftStarted(true);
   setShiftStartTime(now);
-  
-  // Save shift to localStorage
-  const shiftData = {
-    empId,
-    empName,
-    empEmail,
-    empPhone,
-    shiftStartTime: now.toISOString(),
-    totalBreakTime: 0
-  };
-  saveShiftToStorage(shiftData);
   
   const newRecord = {
     empId,
@@ -663,18 +417,10 @@ const startShift = async () => {
     shiftType: 'Regular',
   };
   
-  // Add to activity history
-  addActivity({
-    action: 'SHIFT_START',
-    message: `Shift started at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-    timestamp: now,
-    type: 'success'
-  });
-  
   // Save to local state
   setAttendanceData(prev => [...prev, newRecord]);
   
-  // ✅ IMMEDIATELY SAVE TO FIREBASE
+  // ✅ ALSO SAVE TO FIREBASE
   try {
     await saveAttendanceToFirebase(newRecord);
     console.log('✅ Shift start saved to Firebase');
@@ -684,7 +430,8 @@ const startShift = async () => {
   
   console.log('SHIFT_START record added:', newRecord);
 };
-// End Shift - with Firebase sync
+
+// In endShift function
 const endShift = async () => {
   if (!shiftStarted) {
     alert('Shift has not been started');
@@ -733,32 +480,16 @@ const endShift = async () => {
     durationMinutes: Math.round((now - shiftStartTime) / (1000 * 60)),
   };
   
-  // Add to activity history
-  addActivity({
-    action: 'SHIFT_END',
-    message: `Shift ended. Working Hours: ${workingHours}, Total Breaks: ${totalBreakTime} minutes`,
-    timestamp: now,
-    workingHours,
-    totalBreaks: totalBreakTime,
-    type: 'info'
-  });
-  
   // Save to local state
   setAttendanceData(prev => [...prev, newRecord]);
   
-  // ✅ IMMEDIATELY SAVE TO FIREBASE
+  // ✅ ALSO SAVE TO FIREBASE
   try {
     await saveAttendanceToFirebase(newRecord);
     console.log('✅ Shift end saved to Firebase');
   } catch (error) {
     console.error('❌ Failed to save shift end to Firebase:', error);
   }
-
-  // Clear active break from localStorage
-  clearActiveBreakFromStorage();
-  
-  // Clear shift from localStorage
-  clearShiftFromStorage();
 
   // Reset shift state
   setShiftStarted(false);
@@ -769,225 +500,82 @@ const endShift = async () => {
   console.log('SHIFT_END record added:', newRecord);
   alert(`✅ Shift ended successfully!\nWorking Hours: ${workingHours}\nTotal Breaks: ${totalBreakTime} minutes`);
 };
-const startBreak = async (type, minutes) => {
-  if (!shiftStarted) {
-    alert('Please start your shift first');
-    return;
-  }
 
-  if (activeBreak) {
-    alert('Please end your current break first');
-    return;
-  }
-
-  const breakData = {
-    type,
-    minutes,
-    startTime: Date.now(),
-  };
-  
-  const breakRecord = {
-    id: Date.now(),
-    type: 'break_start',
-    message: `${type} break started`,
-    timestamp: new Date(),
-    breakType: type,
-    employee: empName,
-    employeeId: empId,
-    employeeName: empName,
-    allowedTime: minutes,
-    status: 'started',
-    date: new Date().toLocaleDateString('en-IN'),
-    time: new Date().toLocaleTimeString('en-IN', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true 
-    }),
-    startTime: Date.now(),
-  };
-  
-  setActiveBreak({
-    ...breakData,
-    timerKey: Date.now(),
-  });
-
-  // Save break to localStorage
-  saveActiveBreakToStorage(breakData);
-
-  // ✅ IMMEDIATELY SAVE BREAK START TO FIREBASE
-  try {
-    await saveBreakToFirebase(breakRecord);
-    console.log('✅ Break start saved to Firebase');
-  } catch (error) {
-    console.error('❌ Failed to save break start to Firebase:', error);
-  }
-
-  // Add to activity history
-  addActivity({
-    action: 'BREAK_START',
-    breakType: type,
-    message: `${type} break started (${minutes} minutes)`,
-    type: 'info'
-  });
-};
-
-const endBreak = () => {
-  if (!activeBreak) return;
-
-  const elapsedMinutes = Math.ceil((Date.now() - activeBreak.startTime) / 60000);
-  const newTotalBreakTime = totalBreakTime + elapsedMinutes;
-  setTotalBreakTime(newTotalBreakTime);
-  
-  // Update localStorage with new break time
-  const savedShift = getShiftFromStorage();
-  if (savedShift) {
-    savedShift.totalBreakTime = newTotalBreakTime;
-    saveShiftToStorage(savedShift);
-  }
-  
-  // Clear active break from localStorage
-  clearActiveBreakFromStorage();
-  
-  if (elapsedMinutes <= activeBreak.minutes) {
-    handleBreakComplete(activeBreak.type, elapsedMinutes);
-  } else {
-    handleBreakExceeded(activeBreak.type, (elapsedMinutes - activeBreak.minutes) * 60);
-  }
-  
-  setActiveBreak(null);
-};
-
-  // Handle Leave
-  const handleLeaveSubmit = async () => {
-    if (!empId || !leaveData.from || !leaveData.to || !leaveData.reason) {
-      alert('Please fill all leave details');
+  const startBreak = (type, minutes) => {
+    if (!shiftStarted) {
+      alert('Please start your shift first');
       return;
     }
 
-    const newLeave = {
-      empId,
-      empName,
-      fromDate: leaveData.from,
-      toDate: leaveData.to,
-      reason: leaveData.reason,
-      status: 'Pending',
-      appliedOn: new Date().toISOString(),
-      employeeEmail: empEmail,
-    };
-    
-    // Add to activity history
-    addActivity({
-      action: 'LEAVE_APPLIED',
-      message: `Leave applied from ${new Date(leaveData.from).toLocaleDateString()} to ${new Date(leaveData.to).toLocaleDateString()}`,
-      reason: leaveData.reason,
-      type: 'info'
-    });
-    
-    // Save to local state
-    setLeaveDataLocal(prev => [...prev, newLeave]);
-    
-    // ✅ ALSO SAVE TO FIREBASE
-    try {
-      await saveLeaveToFirebase(newLeave);
-      console.log('✅ Leave request saved to Firebase');
-    } catch (error) {
-      console.error('❌ Failed to save leave to Firebase:', error);
+    if (activeBreak) {
+      alert('Please end your current break first');
+      return;
     }
 
-    // Email notifications
-    setEmailStatus('Submitting leave request and sending emails...');
+    setActiveBreak({
+      type,
+      minutes,
+      startTime: Date.now(),
+      timerKey: Date.now(),
+    });
+
+    const newAlert = {
+      id: Date.now(),
+      type: 'info',
+      message: `${type} break started (${minutes} minutes)`,
+      timestamp: new Date(),
+      breakType: type,
+      employee: empName,
+    };
     
-    try {
-      // Send to MANAGER
-      if (notificationSettings.leaveApplied) {
-        const managerEmailResult = await sendRealEmail(
-          MANAGER.email,
-          `📅 Leave Request: ${empName}`,
-          `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #7c3aed; text-align: center;">Leave Request Notification</h2>
-              <div style="background-color: #f5f3ff; padding: 20px; border-radius: 10px; margin: 20px 0;">
-                <h3 style="color: #5b21b6;">New Leave Request</h3>
-                <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px;">
-                  <p><strong>Employee:</strong> ${empName} (${empId})</p>
-                  <p><strong>From:</strong> ${new Date(leaveData.from).toLocaleDateString('en-IN')}</p>
-                  <p><strong>To:</strong> ${new Date(leaveData.to).toLocaleDateString('en-IN')}</p>
-                  <p><strong>Reason:</strong> ${leaveData.reason}</p>
-                  <p><strong>Applied On:</strong> ${new Date().toLocaleString('en-IN')}</p>
-                  <p><strong>Status:</strong> <span style="color: #f59e0b;">Pending Approval</span></p>
-                </div>
-              </div>
-              <p style="text-align: center; color: #999; font-size: 12px;">
-                Nova TechSciences HR Portal<br>
-                Please review this leave request in the attendance portal.
-              </p>
-            </div>
-          `
-        );
-        
-        // Add email activity
-        addActivity({
-          action: 'EMAIL_SENT',
-          recipient: MANAGER.email,
-          subject: `Leave Request: ${empName}`,
-          message: `Leave request email sent to manager`,
-          type: 'info'
-        });
-      }
-      
-      // Send confirmation to EMPLOYEE
-      if (notificationSettings.leaveApplied && empEmail) {
-        const employeeEmailResult = await sendRealEmail(
-          empEmail,
-          `✅ Leave Application Submitted - ${empName}`,
-          `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h2 style="color: #10b981; text-align: center;">Leave Application Confirmation</h2>
-              <div style="background-color: #ecfdf5; padding: 20px; border-radius: 10px; margin: 20px 0;">
-                <h3 style="color: #047857;">Leave Application Submitted Successfully</h3>
-                <div style="margin: 15px 0; padding: 15px; background: white; border-radius: 8px;">
-                  <p><strong>Employee:</strong> ${empName} (${empId})</p>
-                  <p><strong>From:</strong> ${new Date(leaveData.from).toLocaleDateString('en-IN')}</p>
-                  <p><strong>To:</strong> ${new Date(leaveData.to).toLocaleDateString('en-IN')}</p>
-                  <p><strong>Reason:</strong> ${leaveData.reason}</p>
-                  <p><strong>Applied On:</strong> ${new Date().toLocaleString('en-IN')}</p>
-                  <p><strong>Status:</strong> <span style="color: #f59e0b;">Pending Approval</span></p>
-                </div>
-                <p style="color: #666; margin-top: 15px;">
-                  Your leave request has been submitted to your manager for approval.
-                  You will be notified once it's approved or rejected.
-                </p>
-              </div>
-              <p style="text-align: center; color: #999; font-size: 12px;">
-                Nova TechSciences Attendance Portal<br>
-                This is an automated confirmation email.
-              </p>
-            </div>
-          `
-        );
-        
-        // Add email activity
-        addActivity({
-          action: 'EMAIL_SENT',
-          recipient: empEmail,
-          subject: `Leave Application Confirmation`,
-          message: `Leave confirmation email sent to employee`,
-          type: 'info'
-        });
-      }
-      
-      setEmailStatus('✅ Leave request submitted! Emails sent to manager and you.');
-      alert('Leave request submitted successfully!');
-      setLeaveOpen(false);
-      setLeaveData({ from: '', to: '', reason: '' });
-      
-    } catch (error) {
-      console.error('Error sending leave emails:', error);
-      setEmailStatus('❌ Failed to send leave emails');
-      alert('Leave saved but email notification failed.');
-    }
+    setAlerts(prev => [newAlert, ...prev]);
   };
+
+  const endBreak = () => {
+    if (!activeBreak) return;
+
+    const elapsedMinutes = Math.ceil((Date.now() - activeBreak.startTime) / 60000);
+    setTotalBreakTime(prev => prev + elapsedMinutes);
+    
+    if (elapsedMinutes <= activeBreak.minutes) {
+      handleBreakComplete(activeBreak.type, elapsedMinutes);
+    } else {
+      handleBreakExceeded(activeBreak.type, (elapsedMinutes - activeBreak.minutes) * 60);
+    }
+    
+    setActiveBreak(null);
+  };
+
+  // Handle Leave - SEND TO MANAGER AND CC EMPLOYEE
+  const handleLeaveSubmit = async () => {
+  if (!empId || !leaveData.from || !leaveData.to || !leaveData.reason) {
+    alert('Please fill all leave details');
+    return;
+  }
+
+  const newLeave = {
+    empId,
+    empName,
+    fromDate: leaveData.from,
+    toDate: leaveData.to,
+    reason: leaveData.reason,
+    status: 'Pending',
+    appliedOn: new Date().toISOString(),
+  };
+  
+  // Save to local state
+  setLeaveDataLocal(prev => [...prev, newLeave]);
+  
+  // ✅ ALSO SAVE TO FIREBASE
+  try {
+    await saveLeaveToFirebase(newLeave);
+    console.log('✅ Leave request saved to Firebase');
+  } catch (error) {
+    console.error('❌ Failed to save leave to Firebase:', error);
+  }
+
+  // ... rest of your email sending code ...
+};
 
   // Send Daily Summary to All Employees
   const sendDailySummaryToAll = async () => {
@@ -1038,16 +626,6 @@ const endBreak = () => {
                 </div>
               `
             );
-            
-            // Add email activity
-            addActivity({
-              action: 'EMAIL_SENT',
-              recipient: employee.email,
-              subject: `Daily Attendance Summary`,
-              message: `Daily summary sent to ${employee.name}`,
-              type: 'info'
-            });
-            
             successCount++;
           } catch (error) {
             console.error(`Failed to send to ${employee.email}:`, error);
@@ -1055,15 +633,6 @@ const endBreak = () => {
           }
         }
       }
-
-      // Add summary activity
-      addActivity({
-        action: 'DAILY_SUMMARY',
-        message: `Daily summaries sent to ${successCount} employees. ${failCount} failed.`,
-        successCount,
-        failCount,
-        type: 'info'
-      });
 
       setEmailStatus(`✅ Daily summaries sent! Success: ${successCount}, Failed: ${failCount}`);
       alert(`Daily summaries sent to ${successCount} employees. ${failCount} failed.`);
@@ -1111,15 +680,6 @@ const endBreak = () => {
           </div>
         `
       );
-      
-      // Add email activity
-      addActivity({
-        action: 'EMAIL_SENT',
-        recipient: empEmail,
-        subject: subject,
-        message: `Custom email sent to ${empName}`,
-        type: 'info'
-      });
 
       setEmailStatus(`✅ Email sent to ${empName}!`);
       alert('Email sent successfully!');
@@ -1130,7 +690,7 @@ const endBreak = () => {
     }
   };
 
- const downloadExcel = async () => {
+const downloadExcel = async () => {
   const password = prompt('Enter admin password:');
   if (password !== ADMIN_PASSWORD) {
     alert('Incorrect password');
@@ -1141,15 +701,14 @@ const endBreak = () => {
     console.log('📊 Starting Excel export...');
     console.log('🌐 Fetching data from Firebase...');
     
-    // ✅ FETCH ALL DATA FROM FIREBASE
+    // ✅ FETCH DATA FROM FIREBASE
     let firebaseData;
     try {
       firebaseData = await fetchAllDataForExcel();
       console.log('✅ Data fetched from Firebase:', {
         attendance: firebaseData.attendance.length,
         breaks: firebaseData.breaks.length,
-        leaves: firebaseData.leaves.length,
-        activities: firebaseData.activities?.length || 0
+        leaves: firebaseData.leaves.length
       });
     } catch (firebaseError) {
       console.error('❌ Error fetching from Firebase:', firebaseError);
@@ -1159,250 +718,213 @@ const endBreak = () => {
       firebaseData = {
         attendance: attendanceData,
         breaks: breakHistory,
-        leaves: leaveDataLocal,
-        activities: activityHistory
+        leaves: leaveDataLocal
       };
     }
     
     // Create workbook
     const wb = XLSX.utils.book_new();
     
-    // ==================== SHEET 1: DAILY ATTENDANCE (LOGIN/LOGOUT TIMES) ====================
-    let attendanceByEmployeeDate = {}; // Define it here, outside the if block
-    let dailyAttendance = []; // Define it here
+    // ==================== SHEET 1: SHIFT DETAILS ====================
+    // Process Firebase attendance data to combine SHIFT_START and SHIFT_END
+    const processedAttendance = [];
+    const shiftMap = new Map();
     
-    if (firebaseData.attendance.length > 0) {
-      // Group attendance by employee and date
-      attendanceByEmployeeDate = {};
+    firebaseData.attendance.forEach(record => {
+      const date = record.date || new Date(record.timestamp).toLocaleDateString('en-IN');
+      const key = `${record.empId || record.employeeId}_${date}`;
       
-      firebaseData.attendance.forEach(record => {
-        if (!record.empId || !record.timestamp) return;
-        
-        const date = record.date || new Date(record.timestamp).toLocaleDateString('en-IN');
-        const employeeId = record.empId;
-        const key = `${employeeId}_${date}`;
-        
-        if (!attendanceByEmployeeDate[key]) {
-          attendanceByEmployeeDate[key] = {
-            employeeId,
-            employeeName: record.empName || 'N/A',
-            date,
-            loginTime: null,
-            logoutTime: null,
-            loginDateTime: null,
-            logoutDateTime: null,
-            workingHours: null,
-            totalBreaks: 0,
-            shiftStartTimestamp: null,
-            shiftEndTimestamp: null
-          };
-        }
-        
-        const attendance = attendanceByEmployeeDate[key];
-        
-        if (record.action === 'SHIFT_START') {
-          const loginTime = new Date(record.timestamp);
-          attendance.loginTime = loginTime.toLocaleTimeString('en-IN', { 
+      if (!shiftMap.has(key)) {
+        shiftMap.set(key, {
+          employeeId: record.empId || record.employeeId,
+          employeeName: record.empName || record.employeeName,
+          date: date,
+          startTime: null,
+          endTime: null,
+          startDateTime: null,
+          endDateTime: null,
+          workingHours: null,
+          totalBreaks: 0,
+          status: 'Incomplete',
+          breakTime: 0
+        });
+      }
+      
+      const shift = shiftMap.get(key);
+      
+      if (record.action === 'SHIFT_START') {
+        const startDateTime = new Date(record.timestamp);
+        if (!isNaN(startDateTime.getTime())) {
+          shift.startTime = startDateTime.toLocaleTimeString('en-IN', { 
             hour: '2-digit', 
             minute: '2-digit',
             second: '2-digit',
             hour12: true 
           });
-          attendance.loginDateTime = loginTime.toLocaleString('en-IN');
-          attendance.shiftStartTimestamp = record.timestamp;
+          shift.startDateTime = startDateTime.toLocaleString('en-IN');
+          shift.startTimestamp = record.timestamp;
+          shift.status = 'Active';
         }
-        
-        if (record.action === 'SHIFT_END') {
-          const logoutTime = new Date(record.timestamp);
-          attendance.logoutTime = logoutTime.toLocaleTimeString('en-IN', { 
+      }
+      
+      if (record.action === 'SHIFT_END') {
+        const endDateTime = new Date(record.timestamp);
+        if (!isNaN(endDateTime.getTime())) {
+          shift.endTime = endDateTime.toLocaleTimeString('en-IN', { 
             hour: '2-digit', 
             minute: '2-digit',
             second: '2-digit',
             hour12: true 
           });
-          attendance.logoutDateTime = logoutTime.toLocaleString('en-IN');
-          attendance.shiftEndTimestamp = record.timestamp;
-          attendance.workingHours = record.workingHours || 'N/A';
-          attendance.totalBreaks = record.totalBreaks || 0;
+          shift.endDateTime = endDateTime.toLocaleString('en-IN');
+          shift.endTimestamp = record.timestamp;
+          shift.workingHours = record.workingHours || 'N/A';
+          shift.totalBreaks = record.totalBreaks || 0;
+          shift.status = 'Completed';
         }
-      });
-      
-      // Convert to array and calculate durations
-      dailyAttendance = Object.values(attendanceByEmployeeDate).map(attendance => {
+      }
+    });
+    
+    // Calculate working hours for completed shifts
+    shiftMap.forEach(shift => {
+      if (shift.startTimestamp && shift.endTimestamp) {
+        try {
+          const start = new Date(shift.startTimestamp);
+          const end = new Date(shift.endTimestamp);
+          
+          if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
+            const diffMs = end - start;
+            const totalMinutes = diffMs / (1000 * 60);
+            const netMinutes = totalMinutes - (shift.totalBreaks || 0);
+            
+            if (netMinutes >= 0) {
+              const hours = Math.floor(netMinutes / 60);
+              const minutes = Math.round(netMinutes % 60);
+              shift.workingHours = `${hours}h ${minutes}m`;
+              shift.netWorkingHours = `${hours}h ${minutes}m`;
+            } else {
+              shift.workingHours = 'Invalid: Breaks > Duration';
+              shift.netWorkingHours = 'Invalid';
+            }
+          } else {
+            shift.workingHours = 'Invalid Time';
+            shift.netWorkingHours = 'Invalid';
+          }
+        } catch (error) {
+          shift.workingHours = 'Error';
+          shift.netWorkingHours = 'Error';
+        }
+      }
+    });
+    
+    // Convert map to array
+    shiftMap.forEach(shift => {
+      processedAttendance.push(shift);
+    });
+    
+    // Sort by date and time
+    processedAttendance.sort((a, b) => {
+      const dateA = new Date(a.startDateTime || a.date);
+      const dateB = new Date(b.startDateTime || b.date);
+      return dateB - dateA;
+    });
+    
+    // Create Shift Details Sheet
+    if (processedAttendance.length > 0) {
+      const attendanceSheetData = processedAttendance.map(shift => {
         let workingHours = 'N/A';
-        let durationMinutes = 'N/A';
-        let status = 'Incomplete';
+        let netWorkingHours = 'N/A';
         
-        if (attendance.loginTime && attendance.logoutTime && attendance.shiftStartTimestamp && attendance.shiftEndTimestamp) {
+        if (shift.startTimestamp && shift.endTimestamp) {
           try {
-            const start = new Date(attendance.shiftStartTimestamp);
-            const end = new Date(attendance.shiftEndTimestamp);
+            const start = new Date(shift.startTimestamp);
+            const end = new Date(shift.endTimestamp);
             
             if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end > start) {
               const diffMs = end - start;
-              durationMinutes = Math.round(diffMs / (1000 * 60));
-              
-              // Calculate net working hours (excluding breaks)
-              const netMinutes = durationMinutes - (attendance.totalBreaks || 0);
+              const totalMinutes = diffMs / (1000 * 60);
+              const netMinutes = totalMinutes - (shift.totalBreaks || 0);
               
               if (netMinutes >= 0) {
                 const hours = Math.floor(netMinutes / 60);
                 const minutes = Math.round(netMinutes % 60);
                 workingHours = `${hours}h ${minutes}m`;
-                status = 'Completed';
+                netWorkingHours = `${hours}h ${minutes}m`;
               } else {
-                workingHours = 'Invalid: Breaks > Duration';
-                status = 'Error';
+                workingHours = 'Invalid (Breaks > Duration)';
+                netWorkingHours = 'Invalid';
               }
             }
           } catch (error) {
-            console.error('Error calculating duration:', error);
+            workingHours = 'Error';
+            netWorkingHours = 'Error';
           }
-        } else if (attendance.loginTime) {
-          status = 'Active (No logout)';
-          workingHours = 'In Progress';
         }
         
         return {
-          'Date': attendance.date,
-          'Employee ID': attendance.employeeId,
-          'Employee Name': attendance.employeeName,
-          'Login Time': attendance.loginTime || 'N/A',
-          'Login DateTime': attendance.loginDateTime || 'N/A',
-          'Logout Time': attendance.logoutTime || 'N/A',
-          'Logout DateTime': attendance.logoutDateTime || 'N/A',
-          'Shift Status': status,
+          'Date': shift.date,
+          'Employee ID': shift.employeeId,
+          'Employee Name': shift.employeeName,
+          'Login Time': shift.startTime || 'N/A',
+          'Login Date & Time': shift.startDateTime || 'N/A',
+          'Logout Time': shift.endTime || 'N/A',
+          'Logout Date & Time': shift.endDateTime || 'N/A',
+          'Shift Status': shift.status,
           'Working Hours': workingHours,
-          'Total Breaks (min)': attendance.totalBreaks || 0,
-          'Duration (min)': durationMinutes,
+          'Total Breaks (min)': shift.totalBreaks || 0,
+          'Net Working Hours': netWorkingHours,
+          'Shift Duration (min)': shift.startTimestamp && shift.endTimestamp ? 
+            Math.round((new Date(shift.endTimestamp) - new Date(shift.startTimestamp)) / (1000 * 60)) : 'N/A',
           'Remarks': '',
-          'Record Type': attendance.loginTime && attendance.logoutTime ? 'Complete Shift' : 
-                        attendance.loginTime ? 'Only Login' : 'Only Logout'
+          'Record Type': shift.startTime && shift.endTime ? 'Complete Shift' : 'Partial'
         };
       });
+
+      const ws1 = XLSX.utils.json_to_sheet(attendanceSheetData);
+      XLSX.utils.book_append_sheet(wb, ws1, 'Shift Details');
       
-      // Sort by date (newest first)
-      dailyAttendance.sort((a, b) => {
-        const dateA = new Date(a.Date.split('/').reverse().join('-'));
-        const dateB = new Date(b.Date.split('/').reverse().join('-'));
-        return dateB - dateA;
-      });
-      
-      if (dailyAttendance.length > 0) {
-        const ws1 = XLSX.utils.json_to_sheet(dailyAttendance);
-        XLSX.utils.book_append_sheet(wb, ws1, 'Daily Attendance');
-        
-        // Set column widths
-        ws1['!cols'] = [
-          { wch: 12 }, // Date
-          { wch: 12 }, // Employee ID
-          { wch: 20 }, // Employee Name
-          { wch: 12 }, // Login Time
-          { wch: 20 }, // Login DateTime
-          { wch: 12 }, // Logout Time
-          { wch: 20 }, // Logout DateTime
-          { wch: 15 }, // Shift Status
-          { wch: 15 }, // Working Hours
-          { wch: 15 }, // Total Breaks
-          { wch: 12 }, // Duration
-          { wch: 25 }, // Remarks
-          { wch: 15 }, // Record Type
-        ];
-      }
+      // Set column widths
+      ws1['!cols'] = [
+        { wch: 12 }, // Date
+        { wch: 12 }, // Employee ID
+        { wch: 20 }, // Employee Name
+        { wch: 12 }, // Login Time
+        { wch: 20 }, // Login Date & Time
+        { wch: 12 }, // Logout Time
+        { wch: 20 }, // Logout Date & Time
+        { wch: 15 }, // Shift Status
+        { wch: 15 }, // Working Hours
+        { wch: 15 }, // Total Breaks
+        { wch: 15 }, // Net Working Hours
+        { wch: 25 }, // Remarks
+        { wch: 15 }, // Record Type
+      ];
     }
 
     // ==================== SHEET 2: RAW ATTENDANCE LOGS ====================
     if (firebaseData.attendance.length > 0) {
-      const rawLogsData = firebaseData.attendance.map(record => {
-        const timestamp = record.timestamp ? new Date(record.timestamp) : new Date();
-        return {
-          'Date': timestamp.toLocaleDateString('en-IN'),
-          'Time': timestamp.toLocaleTimeString('en-IN', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true 
-          }),
-          'Employee ID': record.empId || record.employeeId,
-          'Employee Name': record.empName || record.employeeName,
-          'Action': record.action,
-          'Working Hours': record.workingHours || '',
-          'Total Breaks': record.totalBreaks || 0,
-          'Duration (min)': record.durationMinutes || '',
-          'Shift Type': record.shiftType || 'Regular',
-          'Full Timestamp': timestamp.toLocaleString('en-IN'),
-          'Firebase ID': record.id || 'N/A'
-        };
-      });
+      const rawLogsData = firebaseData.attendance.map(record => ({
+        'Date': record.date || new Date(record.timestamp).toLocaleDateString('en-IN'),
+        'Time': record.time || new Date(record.timestamp).toLocaleTimeString('en-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true 
+        }),
+        'Employee ID': record.empId || record.employeeId,
+        'Employee Name': record.empName || record.employeeName,
+        'Employee Email': employees.find(e => e.id === (record.empId || record.employeeId))?.email || 'N/A',
+        'Action': record.action,
+        'Working Hours': record.workingHours || '',
+        'Total Breaks': record.totalBreaks || 0,
+        'Recorded At': new Date(record.timestamp).toLocaleString('en-IN'),
+      }));
       
       const ws2 = XLSX.utils.json_to_sheet(rawLogsData);
-      XLSX.utils.book_append_sheet(wb, ws2, 'Raw Attendance Logs');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Raw Logs');
     }
 
-    // ==================== SHEET 3: ACTIVITY HISTORY ====================
-    if (firebaseData.activities && firebaseData.activities.length > 0) {
-      const activitySheetData = firebaseData.activities.map(activity => {
-        const activityDate = activity.timestamp ? new Date(activity.timestamp) : new Date();
-        return {
-          'Date': activityDate.toLocaleDateString('en-IN'),
-          'Time': activityDate.toLocaleTimeString('en-IN', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true 
-          }),
-          'Employee ID': activity.employeeId || 'N/A',
-          'Employee Name': activity.employeeName || 'N/A',
-          'Action': activity.action || 'N/A',
-          'Activity Type': activity.type || 'info',
-          'Message': activity.message || 'N/A',
-          'Break Type': activity.breakType || '',
-          'Exceeded By (min)': activity.exceededBy || '',
-          'Working Hours': activity.workingHours || '',
-          'Total Breaks (min)': activity.totalBreaks || '',
-          'Reason': activity.reason || '',
-          'Email Recipient': activity.recipient || '',
-          'Email Subject': activity.subject || '',
-          'Browser': activity.browser || 'N/A',
-          'Full Timestamp': activityDate.toLocaleString('en-IN')
-        };
-      });
-      
-      const ws3 = XLSX.utils.json_to_sheet(activitySheetData);
-      XLSX.utils.book_append_sheet(wb, ws3, 'Activity History');
-    }
-
-    // ==================== SHEET 4: BREAK HISTORY WITH EXCEEDED TIMES ====================
-    if (firebaseData.breaks.length > 0) {
-      const breakSheetData = firebaseData.breaks.map(breakRec => {
-        const breakDate = breakRec.timestamp ? new Date(breakRec.timestamp) : new Date();
-        const allowedTime = breakRec.allowedTime || BREAK_LIMITS[breakRec.breakType] || 0;
-        const exceededBy = breakRec.exceededBy || 0;
-        const actualTime = allowedTime + exceededBy;
-        const status = exceededBy > 0 ? 'Exceeded' : 'Completed';
-        
-        return {
-          'Date': breakDate.toLocaleDateString('en-IN'),
-          'Time': breakDate.toLocaleTimeString('en-IN'),
-          'Employee ID': breakRec.employeeId || 'N/A',
-          'Employee Name': breakRec.employeeName || breakRec.employee || 'N/A',
-          'Break Type': breakRec.breakType || 'N/A',
-          'Allowed Time (min)': allowedTime,
-          'Actual Time (min)': actualTime,
-          'Exceeded By (min)': exceededBy,
-          'Status': status,
-          'Exceeded Status': exceededBy > 0 ? 'YES' : 'NO',
-          'Alert Type': breakRec.type || 'N/A',
-          'Message': breakRec.message || 'N/A',
-          'Firebase ID': breakRec.id || 'N/A'
-        };
-      });
-      
-      const ws4 = XLSX.utils.json_to_sheet(breakSheetData);
-      XLSX.utils.book_append_sheet(wb, ws4, 'Break History');
-    }
-
-    // ==================== SHEET 5: LEAVE REQUESTS ====================
+    // ==================== SHEET 3: LEAVE REQUESTS ====================
     if (firebaseData.leaves.length > 0) {
       const leaveSheetData = firebaseData.leaves.map(record => ({
         'Employee ID': record.empId || record.employeeId,
@@ -1415,11 +937,23 @@ const endBreak = () => {
         'Applied On': new Date(record.appliedOn).toLocaleString('en-IN'),
         'Total Days': calculateLeaveDays(record.fromDate, record.toDate),
       }));
-      const ws5 = XLSX.utils.json_to_sheet(leaveSheetData);
-      XLSX.utils.book_append_sheet(wb, ws5, 'Leave Requests');
+      const ws3 = XLSX.utils.json_to_sheet(leaveSheetData);
+      XLSX.utils.book_append_sheet(wb, ws3, 'Leave Requests');
+      
+      ws3['!cols'] = [
+        { wch: 12 }, // Employee ID
+        { wch: 20 }, // Employee Name
+        { wch: 25 }, // Employee Email
+        { wch: 12 }, // From Date
+        { wch: 12 }, // To Date
+        { wch: 30 }, // Reason
+        { wch: 12 }, // Status
+        { wch: 20 }, // Applied On
+        { wch: 10 }, // Total Days
+      ];
     }
 
-    // ==================== SHEET 6: EMPLOYEE DIRECTORY ====================
+    // ==================== SHEET 4: EMPLOYEE DIRECTORY ====================
     const employeeSheetData = employees.map(emp => ({
       'Employee ID': emp.id,
       'Employee Name': emp.name,
@@ -1428,106 +962,75 @@ const endBreak = () => {
       'Shift Timing': emp.shift,
       'Status': 'Active',
     }));
-    const ws6 = XLSX.utils.json_to_sheet(employeeSheetData);
-    XLSX.utils.book_append_sheet(wb, ws6, 'Employee Directory');
+    const ws4 = XLSX.utils.json_to_sheet(employeeSheetData);
+    XLSX.utils.book_append_sheet(wb, ws4, 'Employee Directory');
 
-    // ==================== SHEET 7: SUMMARY REPORT ====================
+    // ==================== SHEET 5: SUMMARY REPORT ====================
     const today = new Date().toLocaleDateString('en-IN');
-    
-    // Get today's attendance - use the already calculated attendanceByEmployeeDate
-    let todaysAttendance = [];
-    let totalToday = 0;
-    let completedToday = 0;
-    let onlyLoginToday = 0;
-    
-    if (firebaseData.attendance.length > 0) {
-      todaysAttendance = Object.values(attendanceByEmployeeDate).filter(att => att.date === today);
-      totalToday = todaysAttendance.length;
-      completedToday = todaysAttendance.filter(a => a.loginTime && a.logoutTime).length;
-      onlyLoginToday = todaysAttendance.filter(a => a.loginTime && !a.logoutTime).length;
-    }
-    
-    const totalExceededBreaks = firebaseData.breaks.filter(b => (b.exceededBy || 0) > 0).length;
-    const totalActivities = firebaseData.activities?.length || 0;
+    const todaysShifts = processedAttendance.filter(shift => shift.date === today);
+    const completedToday = todaysShifts.filter(shift => shift.status === 'Completed').length;
+    const activeToday = todaysShifts.filter(shift => shift.status === 'Active').length;
+    const incompleteToday = todaysShifts.filter(shift => shift.status === 'Incomplete').length;
     
     const summaryData = [
       ['Report Generated:', new Date().toLocaleString('en-IN')],
       ['Report Date:', today],
       ['Total Employees:', employees.length],
-      ["Today's Attendance:", totalToday],
+      ["Today's Attendance:", todaysShifts.length],
       ['Completed Shifts Today:', completedToday],
-      ['Active Shifts (No Logout):', onlyLoginToday],
-      ['Total Activities Recorded:', totalActivities],
-      ['Total Breaks Recorded:', firebaseData.breaks.length],
-      ['Exceeded Breaks:', totalExceededBreaks],
+      ['Active Shifts Now:', activeToday],
+      ['Incomplete Records:', incompleteToday],
       ['Total Leave Requests:', firebaseData.leaves.length],
       ['Pending Leaves:', firebaseData.leaves.filter(l => l.status === 'Pending').length],
-      ['Login/Logout Records:', firebaseData.attendance.filter(a => 
-        a.action === 'SHIFT_START' || a.action === 'SHIFT_END').length],
+      ['Average Shift Duration:', calculateAverageShiftDuration(todaysShifts)],
+      ['System Version:', 'Nova TechSciences Portal v2.0'],
       ['Data Source:', 'Firebase Firestore'],
-      ['Cross-Browser Support:', '✅ Enabled'],
     ];
     
-    const ws7 = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, ws7, 'Summary');
-
-    // ==================== SHEET 8: ATTENDANCE SUMMARY BY EMPLOYEE ====================
-    const employeeSummary = employees.map(emp => {
-      const empAttendance = firebaseData.attendance.filter(a => a.empId === emp.id);
-      const shifts = empAttendance.filter(a => a.action === 'SHIFT_START').length;
-      const completedShifts = empAttendance.filter(a => a.action === 'SHIFT_END').length;
-      const empBreaks = firebaseData.breaks.filter(b => b.employeeId === emp.id).length;
-      const exceededBreaks = firebaseData.breaks.filter(b => 
-        b.employeeId === emp.id && (b.exceededBy || 0) > 0
-      ).length;
-      
-      // Get employee's attendance from dailyAttendance
-      const empDailyAttendance = dailyAttendance.filter(a => a['Employee ID'] === emp.id);
-      const completeShiftsCount = empDailyAttendance.filter(a => 
-        a['Record Type'] === 'Complete Shift'
-      ).length;
-      
-      return {
-        'Employee ID': emp.id,
-        'Employee Name': emp.name,
-        'Total Shifts': shifts,
-        'Completed Shifts': completeShiftsCount,
-        'Incomplete Shifts': shifts - completeShiftsCount,
-        'Total Breaks': empBreaks,
-        'Exceeded Breaks': exceededBreaks,
-        'Email': emp.email,
-        'Shift Timing': emp.shift,
-        'Performance': exceededBreaks > 0 ? 'Needs Improvement' : 'Good',
-        'Last Login': empDailyAttendance.length > 0 ? 
-          empDailyAttendance[0]['Login DateTime'] || 'N/A' : 'No records'
-      };
-    });
+    const ws5 = XLSX.utils.aoa_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, ws5, 'Summary');
     
-    const ws8 = XLSX.utils.json_to_sheet(employeeSummary);
-    XLSX.utils.book_append_sheet(wb, ws8, 'Employee Summary');
+    ws5['!cols'] = [
+      { wch: 25 }, // Metric
+      { wch: 30 }, // Value
+    ];
 
-    // Generate filename
+    // ==================== SHEET 6: BREAK HISTORY ====================
+    if (firebaseData.breaks.length > 0) {
+      const breakSheetData = firebaseData.breaks.map(breakRec => {
+        const breakDate = breakRec.timestamp ? new Date(breakRec.timestamp) : new Date();
+        return {
+          'Date': breakDate.toLocaleDateString('en-IN'),
+          'Time': breakDate.toLocaleTimeString('en-IN'),
+          'Employee ID': breakRec.employeeId || 'N/A',
+          'Employee Name': breakRec.employeeName || breakRec.employee || 'N/A',
+          'Break Type': breakRec.breakType || 'N/A',
+          'Allowed Time': breakRec.allowedTime || BREAK_LIMITS[breakRec.breakType] || 0,
+          'Exceeded By': breakRec.exceededBy || 0,
+          'Status': breakRec.exceededBy > 0 ? 'Exceeded' : 'Completed',
+          'Alert Type': breakRec.type || 'N/A',
+          'Message': breakRec.message || 'N/A',
+        };
+      });
+      
+      const ws6 = XLSX.utils.json_to_sheet(breakSheetData);
+      XLSX.utils.book_append_sheet(wb, ws6, 'Break History');
+    }
+
+    // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `NTS_Attendance_Report_${timestamp}.xlsx`;
     
     XLSX.writeFile(wb, fileName);
-    
-    // Show success message with details
-    const totalLoginRecords = firebaseData.attendance.filter(a => a.action === 'SHIFT_START').length;
-    const totalLogoutRecords = firebaseData.attendance.filter(a => a.action === 'SHIFT_END').length;
-    const completeShiftsCount = Object.values(attendanceByEmployeeDate).filter(a => 
-      a.loginTime && a.logoutTime
-    ).length;
-    
-    alert(`✅ Report downloaded successfully!\n\n📊 Sheets: 8\n📁 File: ${fileName}\n\n📈 ATTENDANCE SUMMARY:\n├─ Login Records: ${totalLoginRecords}\n├─ Logout Records: ${totalLogoutRecords}\n├─ Complete Shifts: ${completeShiftsCount}\n└─ Daily Attendance Sheet shows both login & logout times!\n\n✅ Now shows login/logout times from ALL browsers!`);
+    console.log(`✅ Excel report generated: ${fileName}`);
+    alert(`✅ Report downloaded successfully!\nFilename: ${fileName}\nData Source: Firebase Firestore`);
     
   } catch (error) {
     console.error('❌ Error downloading Excel:', error);
     alert('❌ Failed to download report: ' + error.message);
   }
 };
-
-  // Load data from Firebase on component mount
+// Add this useEffect in your component
 useEffect(() => {
   const loadDataFromFirebase = async () => {
     console.log('📥 Loading data from Firebase...');
@@ -1551,157 +1054,94 @@ useEffect(() => {
     }
   };
   
-  // Check for active shift in localStorage
-  const savedShift = getShiftFromStorage();
-  if (savedShift) {
-    console.log('🔄 Restoring saved shift:', savedShift);
-    
-    // Check if shift is still valid (within same day)
-    const shiftStartTime = new Date(savedShift.shiftStartTime);
-    const now = new Date();
-    const isSameDay = shiftStartTime.toDateString() === now.toDateString();
-    
-    if (isSameDay) {
-      setEmpId(savedShift.empId);
-      setEmpName(savedShift.empName);
-      setEmpEmail(savedShift.empEmail);
-      setEmpPhone(savedShift.empPhone);
-      setShiftStarted(true);
-      setShiftStartTime(shiftStartTime);
-      setTotalBreakTime(savedShift.totalBreakTime || 0);
-      
-      // Check for active break
-// Check for active break
-const savedBreak = getActiveBreakFromStorage();
-if (savedBreak) {
-  console.log('🔄 Restoring active break:', savedBreak);
-  
-  // Calculate elapsed time since break started
-  const breakStartTime = new Date(savedBreak.startTime);
-  const now = new Date();
-  const elapsedMs = now.getTime() - breakStartTime.getTime();
-  const elapsedSeconds = Math.floor(elapsedMs / 1000);
-  const totalBreakSeconds = savedBreak.minutes * 60;
-  
-  if (elapsedSeconds < totalBreakSeconds) {
-    // Break still has time remaining
-    // Set active break with calculated elapsed time
-    setActiveBreak({
-      type: savedBreak.type,
-      minutes: savedBreak.minutes, // Original minutes
-      startTime: savedBreak.startTime,
-      timerKey: Date.now(),
-      elapsedSeconds: elapsedSeconds // Store elapsed seconds for TimerBar
-    });
-    
-    const remainingMinutes = Math.floor((totalBreakSeconds - elapsedSeconds) / 60);
-    const remainingSeconds = (totalBreakSeconds - elapsedSeconds) % 60;
-    
-    addActivity({
-      action: 'BREAK_RESTORED',
-      breakType: savedBreak.type,
-      message: `${savedBreak.type} break restored. ${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')} remaining.`,
-      type: 'info'
-    });
-    
-    console.log(`✅ Break restored with ${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')} remaining`);
-  } else {
-    // Break already exceeded
-    const exceededSeconds = elapsedSeconds - totalBreakSeconds;
-    const exceededMinutes = Math.ceil(exceededSeconds / 60);
-    
-    // Mark as exceeded immediately
-    setActiveBreak({
-      type: savedBreak.type,
-      minutes: savedBreak.minutes,
-      startTime: savedBreak.startTime,
-      timerKey: Date.now(),
-      elapsedSeconds: totalBreakSeconds, // Mark as fully elapsed
-      exceeded: true
-    });
-    
-    // Trigger exceeded handler
-    setTimeout(() => {
-      handleBreakExceeded(savedBreak.type, exceededSeconds);
-    }, 100);
-    
-    addActivity({
-      action: 'BREAK_EXCEEDED',
-      breakType: savedBreak.type,
-      message: `${savedBreak.type} break already exceeded by ${exceededMinutes} minute(s)!`,
-      exceededBy: exceededMinutes,
-      type: 'warning'
-    });
-    
-    clearActiveBreakFromStorage();
-    console.log(`❌ Break already exceeded by ${exceededMinutes} minute(s)`);
-  }
-}
-      
-      // Add activity to history
-      addActivity({
-        action: 'SHIFT_RESTORED',
-        message: `Shift restored from previous session. Started at ${shiftStartTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-        type: 'info'
-      });
-      
-      console.log('✅ Shift restored successfully');
-    } else {
-      console.log('❌ Saved shift is from a different day, clearing...');
-      clearShiftFromStorage();
-      clearActiveBreakFromStorage();
-    }
-  }
-  
   loadDataFromFirebase();
 }, []);
-  // Filter activities by current employee
-  const filteredActivities = useMemo(() => {
-    if (!empId) return activityHistory;
-    return activityHistory.filter(activity => activity.employeeId === empId);
-  }, [activityHistory, empId]);
 
-  // Get Icon Component for activity
-  const getActivityIcon = (action) => {
-    const IconComponent = activityIcons[action] || Activity;
-    return <IconComponent className="w-4 h-4" />;
-  };
-
-  // Helper functions
-  const calculateLeaveDays = (fromDate, toDate) => {
-    if (!fromDate || !toDate) return 0;
-    try {
-      const from = new Date(fromDate);
-      const to = new Date(toDate);
-      const diffTime = Math.abs(to - from);
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    } catch (error) {
-      return 0;
-    }
-  };
-
-  const calculateAverageShiftDuration = (shifts) => {
-    const completedShifts = shifts.filter(shift => shift.status === 'Completed' && shift.workingHours);
-    if (completedShifts.length === 0) return 'N/A';
+// Helper functions
+const calculateWorkingHoursForShift = (startTime, endTime, totalBreaks = 0) => {
+  if (!startTime || !endTime) return 'N/A';
+  
+  try {
+    // Parse the dates properly
+    const start = new Date(startTime);
+    const end = new Date(endTime);
     
-    try {
-      let totalMinutes = 0;
-      completedShifts.forEach(shift => {
-        const match = shift.workingHours.match(/(\d+)h\s*(\d+)m/);
-        if (match) {
-          const hours = parseInt(match[1]);
-          const minutes = parseInt(match[2]);
-          totalMinutes += (hours * 60) + minutes;
-        }
-      });
-      
-      const avgMinutes = totalMinutes / completedShifts.length;
-      const avgHours = Math.floor(avgMinutes / 60);
-      const avgMins = Math.round(avgMinutes % 60);
-      return `${avgHours}h ${avgMins}m`;
-    } catch (error) {
-      return 'N/A';
+    // Check if dates are valid
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'Invalid Time';
     }
+    
+    // Make sure end time is after start time
+    if (end <= start) {
+      return 'Invalid: End before Start';
+    }
+    
+    const diffMs = end - start;
+    const totalMinutes = diffMs / (1000 * 60);
+    
+    // Subtract break time
+    const netMinutes = totalMinutes - (totalBreaks || 0);
+    
+    if (netMinutes < 0) return 'Invalid: Breaks > Duration';
+    
+    const hours = Math.floor(netMinutes / 60);
+    const minutes = Math.round(netMinutes % 60);
+    
+    return `${hours}h ${minutes}m`;
+  } catch (error) {
+    console.error('Error calculating working hours:', error);
+    return 'Calculation Error';
+  }
+};
+
+const calculateNetHours = (shift) => {
+  if (!shift.endTime || !shift.workingHours) return 'N/A';
+  return shift.workingHours; // You can adjust this if you have break time to subtract
+};
+
+const calculateLeaveDays = (fromDate, toDate) => {
+  if (!fromDate || !toDate) return 0;
+  try {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    const diffTime = Math.abs(to - from);
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  } catch (error) {
+    return 0;
+  }
+};
+
+const calculateAverageShiftDuration = (shifts) => {
+  const completedShifts = shifts.filter(shift => shift.status === 'Completed' && shift.workingHours);
+  if (completedShifts.length === 0) return 'N/A';
+  
+  try {
+    let totalMinutes = 0;
+    completedShifts.forEach(shift => {
+      const match = shift.workingHours.match(/(\d+)h\s*(\d+)m/);
+      if (match) {
+        const hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        totalMinutes += (hours * 60) + minutes;
+      }
+    });
+    
+    const avgMinutes = totalMinutes / completedShifts.length;
+    const avgHours = Math.floor(avgMinutes / 60);
+    const avgMins = Math.round(avgMinutes % 60);
+    return `${avgHours}h ${avgMins}m`;
+  } catch (error) {
+    return 'N/A';
+  }
+};
+
+  const calculateWorkingHours = (start, end, breakMinutes) => {
+    if (!start || !end) return '0h 0m';
+    const diffMs = end - start;
+    const diffHours = (diffMs / (1000 * 60 * 60)) - (breakMinutes / 60);
+    const hours = Math.floor(diffHours);
+    const minutes = Math.round((diffHours - hours) * 60);
+    return `${hours}h ${minutes}m`;
   };
 
   return (
@@ -1740,142 +1180,10 @@ if (savedBreak) {
                 <Bell className="w-4 h-4 text-blue-400" />
                 <span className="text-sm">Notifications</span>
               </button>
-
-              <button
-  onClick={debugLocalStorage}
-  className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
->
-  <FileText className="w-5 h-5" />
-  <span>Debug Storage</span>
-</button>
-              
-              {/* Activity History Toggle Button */}
-              <button
-                onClick={() => setShowActivityHistory(!showActivityHistory)}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-gray-800 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
-              >
-                <History className="w-4 h-4 text-purple-400" />
-                <span className="text-sm">Activity History</span>
-              </button>
-              <button
-  onClick={() => {
-    if (confirm('Are you sure you want to force clear ALL local storage? This will reset everything including active shift and breaks.')) {
-      clearShiftFromStorage();
-      clearActiveBreakFromStorage();
-      setShiftStarted(false);
-      setShiftStartTime(null);
-      setTotalBreakTime(0);
-      setActiveBreak(null);
-      setEmpId("");
-      setEmpName("");
-      setEmpEmail("");
-      setEmpPhone("");
-      alert('All local storage cleared!');
-    }
-  }}
-  className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
->
-  <X className="w-5 h-5" />
-  <span>Force Clear All</span>
-</button>
             </div>
           </div>
         </div>
       </header>
-
-      {/* Activity History Panel */}
-      {showActivityHistory && (
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-white flex items-center">
-                <History className="w-5 h-5 mr-2 text-purple-400" />
-                Activity History ({filteredActivities.length})
-              </h3>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setActivityHistory([])}
-                  className="text-sm text-gray-400 hover:text-white hover:bg-gray-700 px-2 py-1 rounded-lg transition-colors"
-                >
-                  Clear All
-                </button>
-                <button
-                  onClick={() => setShowActivityHistory(false)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            {filteredActivities.length === 0 ? (
-              <div className="text-center py-8">
-                <History className="w-12 h-12 mx-auto mb-3 text-gray-700" />
-                <p className="text-gray-500">No activities recorded yet</p>
-                <p className="text-sm text-gray-600 mt-1">Start working to see activity history</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                {filteredActivities.map((activity) => {
-                  const Icon = activityIcons[activity.action] || Activity;
-                  return (
-                    <div
-                      key={activity.id}
-                      className={`p-4 rounded-xl border ${activityBgColors[activity.action] || 'bg-gray-800/50 border-gray-700'}`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-start space-x-3">
-                          <div className={`p-2 rounded-lg ${activityBgColors[activity.action]?.replace('border', 'bg') || 'bg-gray-700'}`}>
-                            <Icon className={`w-4 h-4 ${activityColors[activity.action] || 'text-gray-400'}`} />
-                          </div>
-                          <div>
-                            <p className={`font-medium ${activityColors[activity.action] || 'text-gray-300'}`}>
-                              {activity.message}
-                            </p>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {activity.breakType && (
-                                <span className="text-xs px-2 py-1 bg-amber-900/30 text-amber-300 rounded-full">
-                                  {activity.breakType}
-                                </span>
-                              )}
-                              {activity.exceededBy && (
-                                <span className="text-xs px-2 py-1 bg-red-900/30 text-red-300 rounded-full">
-                                  +{activity.exceededBy} min
-                                </span>
-                              )}
-                              {activity.workingHours && (
-                                <span className="text-xs px-2 py-1 bg-blue-900/30 text-blue-300 rounded-full">
-                                  {activity.workingHours}
-                                </span>
-                              )}
-                              {activity.totalBreaks && (
-                                <span className="text-xs px-2 py-1 bg-emerald-900/30 text-emerald-300 rounded-full">
-                                  {activity.totalBreaks} min breaks
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                              {activity.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              {' • '}
-                              {activity.timestamp.toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setActivityHistory(prev => prev.filter(a => a.id !== activity.id))}
-                          className="text-gray-500 hover:text-white p-1 hover:bg-gray-800 rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Notification Settings Panel */}
       {showNotificationSettings && (
@@ -2055,53 +1363,45 @@ if (savedBreak) {
                 </h3>
                 
                 {/* Active Break Timer */}
-    {/* Active Break Timer */}
-{activeBreak ? (
-  <div className="mb-6 p-5 bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 rounded-xl">
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h4 className="font-bold text-white text-xl">
-          ⏱️ Active: {activeBreak.type} Break
-        </h4>
-        <p className="text-sm text-gray-400 mt-1">
-          Allowed: <span className="text-emerald-400 font-semibold">{activeBreak.minutes} minutes</span>
-        </p>
-        {activeBreak.elapsedSeconds > 0 && (
-          <p className="text-sm text-amber-400 mt-1">
-            Continuing from previous session • 
-            {Math.floor(activeBreak.elapsedSeconds / 60)}:{String(activeBreak.elapsedSeconds % 60).padStart(2, '0')} already elapsed
-          </p>
-        )}
-      </div>
-      <button
-        onClick={endBreak}
-        className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105"
-      >
-        End Break Now
-      </button>
-    </div>
-    
-    <TimerBar
-      totalSeconds={activeBreak.minutes * 60}
-      breakType={activeBreak.type}
-      elapsedSeconds={activeBreak.elapsedSeconds || 0}
-      onComplete={() => {
-        playNotificationSound();
-        setShowBreakOverModal(true);
-      }}
-      onExceed={(exceededSeconds) => {
-        handleBreakExceeded(activeBreak.type, exceededSeconds);
-      }}
-    />
-    
-    <div className="mt-6 p-4 bg-blue-900/30 border border-blue-800/30 rounded-lg">
-      <p className="text-sm text-blue-300 flex items-center">
-        <Mail className="w-4 h-4 mr-2" />
-        Both you and manager will receive email alerts if break is exceeded
-      </p>
-    </div>
-  </div>
-) : (
+                {activeBreak ? (
+                  <div className="mb-6 p-5 bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 rounded-xl">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h4 className="font-bold text-white text-xl">
+                          ⏱️ Active: {activeBreak.type} Break
+                        </h4>
+                        <p className="text-sm text-gray-400 mt-1">
+                          Allowed: <span className="text-emerald-400 font-semibold">{activeBreak.minutes} minutes</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={endBreak}
+                        className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg font-semibold transition-all hover:scale-105"
+                      >
+                        End Break Now
+                      </button>
+                    </div>
+                    
+                    <TimerBar
+                      totalSeconds={activeBreak.minutes * 60}
+                      breakType={activeBreak.type}
+                      onComplete={() => {
+                        playNotificationSound();
+                        setShowBreakOverModal(true);
+                      }}
+                      onExceed={(exceededSeconds) => {
+                        handleBreakExceeded(activeBreak.type, exceededSeconds);
+                      }}
+                    />
+                    
+                    <div className="mt-6 p-4 bg-blue-900/30 border border-blue-800/30 rounded-lg">
+                      <p className="text-sm text-blue-300 flex items-center">
+                        <Mail className="w-4 h-4 mr-2" />
+                        Both you and manager will receive email alerts if break is exceeded
+                      </p>
+                    </div>
+                  </div>
+                ) : (
                   /* Break Buttons */
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <button
@@ -2163,6 +1463,62 @@ if (savedBreak) {
                   onClick={downloadExcel}
                   className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
                 >
+                  <button
+  onClick={() => {
+    console.log('=== DEBUG ATTENDANCE DATA ===');
+    console.log('Total records:', attendanceData.length);
+    
+    // Show SHIFT_START and SHIFT_END records
+    const shiftStarts = attendanceData.filter(r => r.action === 'SHIFT_START');
+    const shiftEnds = attendanceData.filter(r => r.action === 'SHIFT_END');
+    
+    console.log('SHIFT_START records:', shiftStarts.length);
+    console.log('SHIFT_END records:', shiftEnds.length);
+    
+    // Show sample records
+    if (shiftStarts.length > 0) {
+      console.log('Sample SHIFT_START:', {
+        empId: shiftStarts[0].empId,
+        timestamp: shiftStarts[0].timestamp,
+        date: shiftStarts[0].date,
+        time: shiftStarts[0].time
+      });
+    }
+    
+    if (shiftEnds.length > 0) {
+      console.log('Sample SHIFT_END:', {
+        empId: shiftEnds[0].empId,
+        timestamp: shiftEnds[0].timestamp,
+        workingHours: shiftEnds[0].workingHours
+      });
+    }
+    
+    // Check if records can be matched
+    const matchedPairs = [];
+    shiftStarts.forEach(start => {
+      const matchingEnd = shiftEnds.find(end => 
+        end.empId === start.empId && 
+        end.date === start.date
+      );
+      
+      if (matchingEnd) {
+        matchedPairs.push({ start, end: matchingEnd });
+      }
+    });
+    
+    console.log('Matched start/end pairs:', matchedPairs.length);
+    
+    alert(`Attendance Data Debug:\n
+    Total Records: ${attendanceData.length}\n
+    SHIFT_START: ${shiftStarts.length}\n
+    SHIFT_END: ${shiftEnds.length}\n
+    Matched Pairs: ${matchedPairs.length}\n
+    Check console for details.`);
+  }}
+  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg text-white text-sm"
+>
+  🔍 Debug Data
+</button>
                   <Download className="w-5 h-5" />
                   <span>Download Report</span>
                 </button>
@@ -2204,30 +1560,6 @@ if (savedBreak) {
                   <CheckCircle className="w-5 h-5" />
                   <span>Test Email</span>
                 </button>
-
-                {/* Debug Button */}
-                <button
-                  onClick={() => {
-                    console.log('=== DEBUG ATTENDANCE DATA ===');
-                    console.log('Total records:', attendanceData.length);
-                    
-                    const shiftStarts = attendanceData.filter(r => r.action === 'SHIFT_START');
-                    const shiftEnds = attendanceData.filter(r => r.action === 'SHIFT_END');
-                    
-                    console.log('SHIFT_START records:', shiftStarts.length);
-                    console.log('SHIFT_END records:', shiftEnds.length);
-                    
-                    alert(`Attendance Data Debug:\n
-                    Total Records: ${attendanceData.length}\n
-                    SHIFT_START: ${shiftStarts.length}\n
-                    SHIFT_END: ${shiftEnds.length}\n
-                    Check console for details.`);
-                  }}
-                  className="bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
-                >
-                  <FileText className="w-5 h-5" />
-                  <span>Debug Data</span>
-                </button>
               </div>
             </div>
           </div>
@@ -2239,7 +1571,7 @@ if (savedBreak) {
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
                 <h3 className="text-lg font-bold text-white flex items-center">
                   <Bell className="w-5 h-5 mr-2 text-amber-400" />
-                  Recent Activities
+                  Recent Alerts
                 </h3>
                 {alerts.length > 0 && (
                   <button
@@ -2254,8 +1586,8 @@ if (savedBreak) {
               {alerts.length === 0 ? (
                 <div className="text-center py-8">
                   <Bell className="w-12 h-12 mx-auto mb-3 text-gray-700" />
-                  <p className="text-gray-500">No activities yet</p>
-                  <p className="text-sm text-gray-600 mt-1">Your activities will appear here</p>
+                  <p className="text-gray-500">No alerts yet</p>
+                  <p className="text-sm text-gray-600 mt-1">Your alerts will appear here</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
@@ -2275,11 +1607,6 @@ if (savedBreak) {
                           <div className="flex items-center mb-2">
                             {alert.type === 'warning' && <AlertCircle className="w-4 h-4 text-red-400 mr-2" />}
                             {alert.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-400 mr-2" />}
-                            {!alert.type && alert.action === 'SHIFT_START' && <LogIn className="w-4 h-4 text-green-400 mr-2" />}
-                            {!alert.type && alert.action === 'SHIFT_END' && <LogOutIcon className="w-4 h-4 text-blue-400 mr-2" />}
-                            {!alert.type && alert.action?.includes('BREAK') && <CoffeeIcon className="w-4 h-4 text-amber-400 mr-2" />}
-                            {!alert.type && alert.action === 'LEAVE_APPLIED' && <Calendar className="w-4 h-4 text-purple-400 mr-2" />}
-                            {!alert.type && alert.action === 'EMAIL_SENT' && <Mail className="w-4 h-4 text-indigo-400 mr-2" />}
                             <p className={`font-medium ${
                               alert.type === 'warning' ? 'text-red-300' : 
                               alert.type === 'success' ? 'text-emerald-300' : 
@@ -2295,19 +1622,9 @@ if (savedBreak) {
                                 +{alert.exceededBy} min
                               </span>
                             )}
-                            {alert.action === 'SHIFT_START' && (
-                              <span className="ml-2 px-2 py-0.5 bg-green-900/30 text-green-300 rounded-full text-xs">
-                                Shift Start
-                              </span>
-                            )}
-                            {alert.action === 'SHIFT_END' && (
-                              <span className="ml-2 px-2 py-0.5 bg-blue-900/30 text-blue-300 rounded-full text-xs">
-                                Shift End
-                              </span>
-                            )}
-                            {alert.action === 'LEAVE_APPLIED' && (
-                              <span className="ml-2 px-2 py-0.5 bg-purple-900/30 text-purple-300 rounded-full text-xs">
-                                Leave
+                            {alert.message.includes('Email') && (
+                              <span className="ml-2 px-2 py-0.5 bg-emerald-900/30 text-emerald-300 rounded-full text-xs">
+                                ✓ Email sent
                               </span>
                             )}
                           </p>
