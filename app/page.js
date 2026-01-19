@@ -1519,7 +1519,7 @@ const endBreak = () => {
       a.loginTime && a.logoutTime
     ).length;
     
-    alert(`✅ Report downloaded successfully!\n\n📊 Sheets: 8\n📁 File: ${fileName}\n\n📈 ATTENDANCE SUMMARY:\n├─ Login Records: ${totalLoginRecords}\n├─ Logout Records: ${totalLogoutRecords}\n├─ Complete Shifts: ${completeShiftsCount}\n└─ Daily Attendance Sheet shows both login & logout times!\n\n✅ Now shows login/logout times from ALL browsers!`);
+    alert(`✅ Report downloaded successfully!\n\n📊 Sheets: 8\n📁 File: ${fileName}\n\n`);
     
   } catch (error) {
     console.error('❌ Error downloading Excel:', error);
@@ -1741,13 +1741,13 @@ if (savedBreak) {
                 <span className="text-sm">Notifications</span>
               </button>
 
-              <button
+              {/* <button
   onClick={debugLocalStorage}
   className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-4 py-3 rounded-lg font-semibold flex items-center space-x-2 transition-all hover:scale-105"
 >
   <FileText className="w-5 h-5" />
   <span>Debug Storage</span>
-</button>
+</button> */}
               
               {/* Activity History Toggle Button */}
               <button
@@ -1757,7 +1757,7 @@ if (savedBreak) {
                 <History className="w-4 h-4 text-purple-400" />
                 <span className="text-sm">Activity History</span>
               </button>
-              <button
+              {/* <button
   onClick={() => {
     if (confirm('Are you sure you want to force clear ALL local storage? This will reset everything including active shift and breaks.')) {
       clearShiftFromStorage();
@@ -1777,7 +1777,7 @@ if (savedBreak) {
 >
   <X className="w-5 h-5" />
   <span>Force Clear All</span>
-</button>
+</button> */}
             </div>
           </div>
         </div>
@@ -2229,6 +2229,7 @@ if (savedBreak) {
                   <span>Debug Data</span>
                 </button>
               </div>
+              
             </div>
           </div>
 
