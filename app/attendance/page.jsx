@@ -1,10 +1,10 @@
 
 
 import { saveAttendanceDual, getTodaysAttendanceDual } from '@/lib/dualStorage';
-
-export async function GET(request) {
+ export const dynamic = 'force-dynamic';
+ export  async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const date = searchParams.get('date');
     
     const data = await getTodaysAttendanceDual();
@@ -22,7 +22,7 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
+export  async function POST(request) {
   try {
     const data = await request.json();
     const { employeeId, employeeName, action, shift, isLate } = data;
@@ -61,8 +61,8 @@ export async function POST(request) {
       error: 'Internal server error' 
     }, { status: 500 });
   }
-}
 
+}
 
 
 // // /app/attendance/page.jsx
